@@ -4,6 +4,12 @@ local M = {}
 local dropMap = {}
 local itemToMob = {}
 local configuredDrops = nil
+local dataModels = {
+    nameToMobName = {},
+    mobNameToName = {},
+    nameToDisplayName = {},
+    displayNameToName = {},
+}
 
 -- TODO Move this to a common utils file?
 local function makeSet(list)
@@ -14,11 +20,45 @@ local function makeSet(list)
     return set
 end
 
-local function scan(inv)
-    local models = {}
+local function makeWantedSets(wantedMobNames)
+    local dataModelNamesSet = {}
+    local dataModelDisplayNamesSet = {}
+    for _, mobName in ipairs(wantedMobNames) do
+        local dataModelName = dataModels.mobNameToName[mobName]
+        if dataModelName then
+            local dataModelDisplayName = dataModels.nameToDisplayName[dataModelName]
+            if dataModelDisplayName then
+                dataModelNamesSet[dataModelName] = true
+                dataModelDisplayNamesSet[dataModelDisplayName] = true
+            else
+                print("Could not resolve data model name '" .. dataModelName .. "' to data model display name")
+            end
+        else
+            print("Could not resolve mob name '" .. mobName .. "' to data model name")
+        end
+    end
+    return dataModelNamesSet, dataModelDisplayNamesSet
+end
 
-    for slot in pairs(inv.list()) do
-        local detail = inv.getItemDetail(slot)
+local function scanDC(datacenter)
+    local ok, items = pcall(datacenter.list)
+    if not ok then
+        print("Failed to scan data center:")
+        print(items)
+        return {}
+    end
+
+    items = items or {}
+
+    print("Found " .. #items .. " data model items in data center") --TODO Remove this debug line?
+
+    local models = {}
+    for slot in pairs(items) do
+        local ok2, detail = pcall(datacenter.getItemDetail, slot)
+        if not ok2 then
+            print("Failed to get item detail of slot " .. slot .. ":")
+            print(detail)
+        end
 
         if detail then
             models[detail.displayName] = {
@@ -28,45 +68,117 @@ local function scan(inv)
         end
     end
 
+    print("Found " .. #models .. " data models in data center") --TODO Remove this debug line?
+
     return models
 end
 
---- Synchronize the datacenter so it contains exactly the requested models.
----
---- storage    Wrapped inventory containing all models.
---- datacenter Wrapped inventory connected to the HNN model port.
---- wanted     Array of mob ids, e.g. {"minecraft:creeper","minecraft:zombie"}
-function M.sync(storage, datacenter, wanted)
-    local wantedSet = makeSet(wanted)
+local function scanME(meBridge)
+    local ok, items = pcall(meBridge.getItems, {name = "hostilenetworks:data_model"})
+    if not ok then
+        print("Failed to scan ME system:")
+        print(items)
+        return {}
+    end
 
-    local storageName = peripheral.getName(storage)
-    local dcName = peripheral.getName(datacenter)
+    items = items or {}
+
+    print("Found " .. #items .. " data model items in ME system") --TODO Remove this debug line?
+
+    local models = {}
+    for k, info in pairs(items) do
+        local components = info.components
+        if components then
+            local dataModelName = components["hostilenetworks:data_model"]
+            if dataModelName then
+                models[dataModelName] = info
+            end
+        end
+    end
+
+    print("Found " .. #items .. " data models in ME system") --TODO Remove this debug line?
+
+    return models
+end
+
+local function removeFromDC(meBridge, dataModelDisplayName, dcInfo)
+--TODO Does this work with the displayName filter? Maybe use the nbt instead?
+    print("Removing " .. dataModelDisplayName .. " from data center...")
+    local ok, err = pcall(meBridge.importItem, {nbt = dcInfo.nbt}, "down")
+    if not ok then
+        print("Failed to remove " .. dataModelDisplayName .. " from data center via nbt")
+        print(err)
+        print("Trying to remove via displayName instead...")
+        local ok2, err2 = pcall(meBridge.importItem, {name = "hostilenetworks:data_model", displayName = dataModelDisplayName}, "down")
+        if not ok2 then
+            print("Failed to remove " .. dataModelDisplayName .. " from data center via displayName")
+            print(err2)
+            return
+        end
+    end
+    print("Removed  " .. dataModelDisplayName .. " from data center")
+end
+
+local function addToDC(meBridge, dataModelDisplayName, meInfo)
+    print("Adding " .. dataModelDisplayName .. " to data center...")
+    local ok, err = pcall(meBridge.exportItem, {fingerprint = meInfo.fingerprint}, "down")
+    if not ok then
+        print("Failed to add " .. dataModelDisplayName .. " to data center via fingerprint")
+        print(err)
+        print("Trying to add via displayName instead...")
+        local ok2, err2 = pcall(meBridge.exportItem, {name = "hostilenetworks:data_model", displayName = dataModelDisplayName}, "down")
+        if not ok2 then
+            print("Failed to add " .. dataModelDisplayName .. " to data center via displayName")
+            print(err2)
+            return
+        end
+    end
+    print("Added  " .. dataModelDisplayName .. " to data center")
+end
+
+local function clearDC(meBridge)
+    local ok, err = pcall(meBridge.importItem, {name = "hostilenetworks:data_model"}, "down")
+    if not ok then
+        print("Failed to clear data center:")
+        print(err)
+    end
+end
+
+--- Synchronize the data center so it contains exactly the requested models.
+---
+--- meBridge       Wrapped me bridge containing all models.
+--- datacenter     Wrapped inventory connected to the HNN model port.
+--- wantedMobNames Array of mob ids, e.g. {"minecraft:creeper","minecraft:zombie"}
+function M.sync(meBridge, datacenter, wantedMobNames)
+    local wantedDataModelNamesSet, wantedDataModelDisplayNamesSet = makeWantedSets(wantedMobNames)
+
+    -- Scan data center.
+    local dcModels = scanDC(datacenter)
+    print("Found " .. #dcModels .. " data models in the data center") --TODO Remove this debug line
 
     -- Remove unwanted models.
-    local dcModels = scan(datacenter)
-
-    for mob, info in pairs(dcModels) do
-        if not wantedSet[mob] then
-            datacenter.pushItems(storageName, info.slot)
-            print("Removing data model of " .. mob .. " from datacenter")
+    for dataModelDisplayName, dcInfo in pairs(dcModels) do
+        if not wantedDataModelDisplayNamesSet[dataModelDisplayName] then
+            removeFromDC(meBridge, dataModelDisplayName, dcInfo)
         end
     end
 
     -- Refresh after removals.
-    dcModels = scan(datacenter)
-    local storageModels = scan(storage)
+    dcModels = scanDC(datacenter)
+    local meModels = scanME(meBridge)
+    print("Found " .. #meModels .. " data models in the ME system") --TODO Remove this debug line
 
     -- Add missing models.
-    for mob in pairs(wantedSet) do
-        if not dcModels[mob] then
-            local info = storageModels[mob]
+    for dataModelName in pairs(wantedDataModelNamesSet) do
+        local dataModelDisplayName = dataModels.nameToDisplayName[dataModelName]
+        if not dcModels[dataModelDisplayName] then
+            local meInfo = meModels[dataModelName]
 
-            if not info then
-                error(("Storage does not contain data model '%s'"):format(mob))
+            if not meInfo then
+                error(("ME system does not contain data model '%s'"):format(dataModelName))
             end
 
-            storage.pushItems(dcName, info.slot)
-            print("Adding data model of " .. mob .. " to datacenter")
+            addToDC(meBridge, dataModelDisplayName, meInfo)
         end
     end
 end
@@ -132,8 +244,25 @@ function M.loadDropMap(path)
     end
 end
 
+function M.loadDataModelMaps(path)
+    if not fs.exists(path) then
+        error(("Data model maps '%s' does not exist"):format(path))
+    end
+
+    local map = dofile(path)
+
+    if type(map) ~= "table" then
+        error("Data model maps must return a table")
+    end
+
+    dataModels.nameToMobName = map.nameToMobName
+    dataModels.mobNameToName = map.mobNameToName
+    dataModels.nameToDisplayName = map.nameToDisplayName
+    dataModels.displayNameToName = map.displayNameToName
+end
+
 --- Loads an optional map of which drop each mob is configured
---- to produce in this datacenter.
+--- to produce in this data center.
 ---
 --- Example:
 --- return {
@@ -200,14 +329,14 @@ function M.getSupportedItems()
     return result
 end
 
---- Synchronize the datacenter based on desired items.
+--- Synchronize the data center based on desired items.
 ---
 --- wantedItems = {
 ---     "minecraft:nether_star",
 ---     "minecraft:dragon_egg",
 --- }
-function M.syncItems(storage, datacenter, wantedItems)
-    local wantedMobs = {}
+function M.syncItems(meBridge, datacenter, wantedItems)
+    local wantedMobNames = {}
     local seen = {}
 
     for _, item in ipairs(wantedItems) do
@@ -233,11 +362,14 @@ function M.syncItems(storage, datacenter, wantedItems)
 
         if not seen[chosen] then
             seen[chosen] = true
-            table.insert(wantedMobs, chosen)
+            table.insert(wantedMobNames, chosen)
         end
     end
 
-    return M.sync(storage, datacenter, wantedMobs)
+    return M.sync(meBridge, datacenter, wantedMobNames)
 end
+
+M.loadDropMap("drops.lua")
+M.loadDataModelMaps("dataModelMaps.lua")
 
 return M
