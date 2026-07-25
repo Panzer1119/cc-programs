@@ -48,6 +48,7 @@ function M.sync(storage, datacenter, wanted)
     for mob, info in pairs(dcModels) do
         if not wantedSet[mob] then
             datacenter.pushItems(storageName, info.slot)
+            print("Removing data model of " .. mob .. " from datacenter")
         end
     end
 
@@ -65,6 +66,7 @@ function M.sync(storage, datacenter, wanted)
             end
 
             storage.pushItems(dcName, info.slot)
+            print("Adding data model of " .. mob .. " to datacenter")
         end
     end
 end
