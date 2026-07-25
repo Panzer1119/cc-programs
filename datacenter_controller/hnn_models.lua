@@ -50,7 +50,7 @@ local function scanDC(datacenter)
 
     items = items or {}
 
-    print("Found " .. #items .. " data model items in data center") --TODO Remove this debug line?
+    --print("Found " .. #items .. " data model items in data center") -- DEBUG
 
     local models = {}
     for slot in pairs(items) do
@@ -68,7 +68,7 @@ local function scanDC(datacenter)
         end
     end
 
-    print("Found " .. #models .. " data models in data center") --TODO Remove this debug line?
+    print("Found " .. #models .. " data models in data center") -- DEBUG
 
     return models
 end
@@ -83,7 +83,7 @@ local function scanME(meBridge)
 
     items = items or {}
 
-    print("Found " .. #items .. " data model items in ME system") --TODO Remove this debug line?
+    --print("Found " .. #items .. " data model items in ME system") -- DEBUG
 
     local models = {}
     for k, info in pairs(items) do
@@ -96,13 +96,12 @@ local function scanME(meBridge)
         end
     end
 
-    print("Found " .. #items .. " data models in ME system") --TODO Remove this debug line?
+    print("Found " .. #items .. " data models in ME system") -- DEBUG
 
     return models
 end
 
 local function removeFromDC(meBridge, dataModelDisplayName, dcInfo)
---TODO Does this work with the displayName filter? Maybe use the nbt instead?
     print("Removing " .. dataModelDisplayName .. " from data center...")
     local ok, err = pcall(meBridge.importItem, {nbt = dcInfo.nbt}, "down")
     if not ok then
@@ -154,7 +153,7 @@ function M.sync(meBridge, datacenter, wantedMobNames)
 
     -- Scan data center.
     local dcModels = scanDC(datacenter)
-    print("Found " .. #dcModels .. " data models in the data center") --TODO Remove this debug line
+    print("Found " .. #dcModels .. " data models in the data center") -- DEBUG
 
     -- Remove unwanted models.
     for dataModelDisplayName, dcInfo in pairs(dcModels) do
@@ -166,7 +165,7 @@ function M.sync(meBridge, datacenter, wantedMobNames)
     -- Refresh after removals.
     dcModels = scanDC(datacenter)
     local meModels = scanME(meBridge)
-    print("Found " .. #meModels .. " data models in the ME system") --TODO Remove this debug line
+    print("Found " .. #meModels .. " data models in the ME system") -- DEBUG
 
     -- Add missing models.
     for dataModelName in pairs(wantedDataModelNamesSet) do
@@ -311,9 +310,11 @@ function M.getSupportedItems()
             supported = true
         else
             for _, candidate in ipairs(candidates) do
-                if configuredDrops[candidate.mob] == item then
-                    supported = true
-                    break
+                for cm, ci in pairs(configuredDrops) do
+                    if cm == candidate.mob and ci == item then
+                        supported = true
+                        break
+                    end
                 end
             end
         end
@@ -349,8 +350,18 @@ function M.syncItems(meBridge, datacenter, wantedItems)
         local chosen
 
         for _, candidate in ipairs(candidates) do
-            if not configuredDrops
-            or configuredDrops[candidate.mob] == item then
+            if not configuredDrops then
+                chosen = candidate.mob
+                break
+            end
+            local supported = false
+            for cm, ci in pairs(configuredDrops) do
+                if cm == candidate.mob and ci == item then
+                    supported = true
+                    break
+                end
+            end
+            if supported then
                 chosen = candidate.mob
                 break
             end

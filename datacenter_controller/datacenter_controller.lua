@@ -54,12 +54,9 @@ local function getRequestedItems(supportedItems)
     local requestedItemsSet = {}
     for k,v in pairs(craftingCPUs) do
         if v.isBusy then
-            --print(textutils.serialize(v))
             local job = v.craftingJob
             local resource = job.resource
             local name = resource.name
-            print(name)
-            print(supportedItemsSet[name])
             -- If the item is supported, request it
             if supportedItemsSet[name] then
                 requestedItemsSet[name] = true
@@ -81,9 +78,9 @@ end
 while true do
     loadConfiguredDrops()
     local supportedItems = getSupportedItems()
-    print("Found " .. #supportedItems .. " supported items") --TODO Remove this debug line?
+    print("Found " .. #supportedItems .. " supported items") -- DEBUG
     local requestedItems = getRequestedItems(supportedItems)
-    print("Found " .. #requestedItems .. " requested items") --TODO Remove this debug line?
+    print("Found " .. #requestedItems .. " requested items") -- DEBUG
     reconcile(requestedItems)
     sleep(1)
 end
