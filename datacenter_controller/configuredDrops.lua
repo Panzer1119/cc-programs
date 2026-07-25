@@ -1,0 +1,17 @@
+return {
+    ["allthemodium:piglich"] = "allthemodium:piglich_heart",
+    ["minecraft:blaze"] = "minecraft:blaze_rod",
+    ["minecraft:creeper"] = "minecraft:gunpowder",
+    ["minecraft:enderman"] = "minecraft:ender_pearl",
+    ["minecraft:ender_dragon"] = "minecraft:dragon_breath",
+    ["minecraft:ghast"] = "minecraft:ghast_tear",
+    ["minecraft:shulker"] = "minecraft:shulker_shell",
+    ["minecraft:skeleton"] = "minecraft:arrow",
+    ["minecraft:spider"] = "minecraft:string",
+    ["minecraft:squid"] = "minecraft:ink_sac",
+    ["minecraft:warden"] = "deeperdarker:heart_of_the_deep",
+    ["minecraft:witch"] = "minecraft:glowstone_dust",
+    ["minecraft:wither"] = "minecraft:nether_star",
+    ["minecraft:wither_skeleton"] = "minecraft:coal",
+    ["minecraft:zombie"] = "minecraft:rotten_flesh",
+}
