@@ -69,7 +69,19 @@ local outputHistory = {}
 ------------------------------------------------------------
 
 local tier = basalt.computed(function()
-    return TIER_CAPACITY[maxEnergy:get()] or 0
+    local max = maxEnergy:get()
+    if max > 2140000000000 then
+        return 8
+    end
+    return TIER_CAPACITY[max] or 0
+end)
+
+local isInfinite = basalt.computed(function()
+    return tier:get() == 8
+end)
+
+local isFinite = basalt.computed(function()
+    return tier:get() < 8
 end)
 
 local charge = basalt.computed(function()
@@ -136,7 +148,7 @@ local function compact(value)
         "k", "M", "G", "T", "P", "E", "Z"
     }
 
-    local i = 1
+    local i = 0
 
     while abs >= 1000 and i < #suffix do
         value = value / 1000
@@ -145,16 +157,16 @@ local function compact(value)
     end
 
     if abs >= 100 then
-        return string.format("%.0f%s", value, suffix[i])
+        return string.format("%.0f %s", value, suffix[i])
     elseif abs >= 10 then
-        return string.format("%.1f%s", value, suffix[i])
+        return string.format("%.1f %s", value, suffix[i])
     else
-        return string.format("%.2f%s", value, suffix[i])
+        return string.format("%.2f %s", value, suffix[i])
     end
 end
 
 local function withUnit(value)
-    return compact(value) .. " " .. unit:get()
+    return compact(value) .. unit:get()
 end
 
 local function signed(value)
@@ -166,30 +178,24 @@ local function signed(value)
 end
 
 local function energyText()
-    local max = maxEnergy:get()
-
-    if max == -1 then
-        return "∞"
-    end
-
     return withUnit(energy:get())
 end
 
 local function capacityText()
-    local max = maxEnergy:get()
-
-    if max == -1 then
-        return "∞"
+    if isInfinite:get() then
+        return "Infinite"
     end
 
-    return withUnit(max)
+    return withUnit(maxEnergy:get())
 end
 
 local function chargeText()
     local value = charge:get()
 
     if not value then
-        return "∞ capacity"
+        return "N/A"
+    elseif isInfinite:get() then
+        return "Infinite capacity"
     end
 
     return string.format("%.1f%%", value)
@@ -346,6 +352,7 @@ local header = frame:addFrame({
 header:addLabel({
     x = 2,
     y = 1,
+    --width = basalt.fill(),
     text = "DRACONIC EVOLUTION ENERGY CORE",
     foreground = C.accent,
 })
@@ -353,12 +360,12 @@ header:addLabel({
 header:addLabel({
     x = 2,
     y = 2,
+    width = basalt.fill(),
     text = basalt.computed(function()
         if connected:get() then
-            return "● ONLINE  ·  " .. tostring(energyCoreName or "")
+            return "ONLINE - \"" .. tostring(energyCoreName or "") .. "\""
         end
-
-        return "● DISCONNECTED  ·  SEARCHING..."
+        return "DISCONNECTED - SEARCHING..."
     end),
     foreground = basalt.computed(function()
         return connected:get() and C.good or C.danger
@@ -377,13 +384,16 @@ local corePanel = frame:addFrame({
         and math.floor((self.parent.width - 5) / 2)
         or self.parent.width - 4
     end,
+    --width = basalt.fill(),
     height = 8,
     background = C.panel,
+    --background = colors.red,
 })
 
 corePanel:addLabel({
     x = 2,
     y = 1,
+    --width = basalt.fill(),
     text = "CORE",
     foreground = C.accent,
 })
@@ -391,6 +401,10 @@ corePanel:addLabel({
 corePanel:addLabel({
     x = 2,
     y = 2,
+    width = basalt.fill(),
+    --text = "Test",
+    --text = basalt.computed(function() return "Eest 2" end),
+    --text = tier:map(function(value) return "Sest 3" end),
     text = basalt.computed(function()
         return "Tier: " .. tier:get()
     end),
@@ -399,14 +413,16 @@ corePanel:addLabel({
 corePanel:addLabel({
     x = 2,
     y = 3,
+    width = basalt.fill(),
     text = basalt.computed(function()
-        return "Stored: " .. energyText()
+        return "Stored:   " .. energyText()
     end),
 })
 
 corePanel:addLabel({
     x = 2,
     y = 4,
+    width = basalt.fill(),
     text = basalt.computed(function()
         return "Capacity: " .. capacityText()
     end),
@@ -415,6 +431,8 @@ corePanel:addLabel({
 corePanel:addLabel({
     x = 2,
     y = 5,
+    width = basalt.fill(),
+    visible = isFinite,
     text = basalt.computed(function()
         return "Charge: " .. chargeText()
     end),
@@ -437,6 +455,7 @@ corePanel:addProgressBar({
     x = 2,
     y = 6,
     width = "{parent.width - 3}",
+    visible = isFinite,
     progress = charge:map(function(value)
         return value or 100
     end),
@@ -482,57 +501,137 @@ local ratePanel = frame:addFrame({
     background = C.panel,
 })
 
+local ratePanelRow = 1
+
 ratePanel:addLabel({
     x = 2,
-    y = 1,
+    y = ratePanelRow,
+    --width = basalt.fill(),
     text = "POWER FLOW",
     foreground = C.accent,
 })
 
+ratePanelRow = ratePanelRow + 1
+
 ratePanel:addLabel({
     x = 2,
-    y = 2,
-    text = basalt.computed(function()
-        return "Input: " .. withUnit(input:get()) .. "/t"
-    end),
+    y = ratePanelRow,
+    text = "Input:",
     foreground = C.input,
 })
 
 ratePanel:addLabel({
-    x = 2,
-    y = 3,
+    x = 15,
+    y = ratePanelRow,
+    width = basalt.fill(),
     text = basalt.computed(function()
-        return "Output: " .. withUnit(output:get()) .. "/t"
+        return withUnit(input:get()) .. "/t"
     end),
+    foreground = C.input,
+})
+
+ratePanelRow = ratePanelRow + 1
+
+ratePanel:addLabel({
+    x = 2,
+    y = ratePanelRow,
+    text = "Output:",
     foreground = C.output,
 })
 
 ratePanel:addLabel({
-    x = 2,
-    y = 4,
+    x = 15,
+    y = ratePanelRow,
+    width = basalt.fill(),
     text = basalt.computed(function()
-        return "Net: " .. signed(net:get()) .. "/t"
+        return withUnit(output:get()) .. "/t"
     end),
+    foreground = C.output,
+})
+
+ratePanelRow = ratePanelRow + 1
+
+--ratePanel:addLabel({
+--    x = 2,
+--    y = ratePanelRow,
+--    text = "60s Avg In:",
+--    foreground = C.input,
+--})
+--
+--ratePanel:addLabel({
+--    x = 15,
+--    y = ratePanelRow,
+--    width = basalt.fill(),
+--    text = basalt.computed(function()
+--        return withUnit(averageInput:get()) .. "/t"
+--    end),
+--    foreground = C.input,
+--})
+--
+--ratePanelVerticalIndex = ratePanelVerticalIndex + 1
+--
+--ratePanel:addLabel({
+--    x = 2,
+--    y = ratePanelRow,
+--    text = "60s Avg Out:",
+--    foreground = C.output,
+--})
+--
+--ratePanel:addLabel({
+--    x = 15,
+--    y = ratePanelRow,
+--    width = basalt.fill(),
+--    text = basalt.computed(function()
+--        return withUnit(averageOutput:get()) .. "/t"
+--    end),
+--    foreground = C.output,
+--})
+--
+--ratePanelVerticalIndex = ratePanelVerticalIndex + 1
+
+ratePanel:addLabel({
+    x = 2,
+    y = ratePanelRow,
+    text = "Net:",
     foreground = C.net,
 })
 
 ratePanel:addLabel({
-    x = 2,
-    y = 5,
+    x = 15,
+    y = ratePanelRow,
+    width = basalt.fill(),
     text = basalt.computed(function()
-        return "60s Avg In: " .. withUnit(averageInput:get()) .. "/t"
+        return signed(net:get()) .. "/t"
     end),
-    foreground = C.input,
+    --foreground = C.net,
+    foreground = basalt.computed(function()
+        return net:get() >= 0 and C.input or C.output
+    end),
 })
 
-ratePanel:addLabel({
-    x = 2,
-    y = 6,
-    text = basalt.computed(function()
-        return "60s Avg Out: " .. withUnit(averageOutput:get()) .. "/t"
-    end),
-    foreground = C.output,
-})
+ratePanelRow = ratePanelRow + 1
+
+--ratePanel:addLabel({
+--    x = 2,
+--    y = ratePanelRow,
+--    text = "60s Avg Net:",
+--    foreground = C.net,
+--})
+--
+--ratePanel:addLabel({
+--    x = 15,
+--    y = ratePanelRow,
+--    width = basalt.fill(),
+--    text = basalt.computed(function()
+--        return signed(averageNet:get()) .. "/t"
+--    end),
+--    --foreground = C.net,
+--    foreground = basalt.computed(function()
+--        return averageNet:get() >= 0 and C.input or C.output
+--    end),
+--})
+--
+--ratePanelVerticalIndex = ratePanelVerticalIndex + 1
 
 ------------------------------------------------------------
 -- Unit selector
@@ -548,7 +647,7 @@ local unitButton = frame:addButton({
     height = 2,
 
     text = unit:map(function(value)
-        return value .. "  ↻"
+        return value .. "  >"
     end),
 
     background = C.panel,
@@ -598,14 +697,16 @@ local graphPanel = frame:addFrame({
 graphPanel:addLabel({
     x = 2,
     y = 1,
-    text = "RATE HISTORY · 60 SECONDS",
+    --width = basalt.fill(),
+    text = "RATE HISTORY - 60 SECONDS",
     foreground = C.accent,
 })
 
 graphPanel:addLabel({
     x = "{parent.width - 28}",
     y = 1,
-    text = "● INPUT   ● OUTPUT",
+    --width = basalt.fill(),
+    text = "- INPUT   - OUTPUT",
     foreground = C.muted,
 })
 
@@ -647,6 +748,7 @@ local footer = frame:addFrame({
 footer:addLabel({
     x = 2,
     y = 1,
+    --width = basalt.fill(),
     text = "60S AVG",
     foreground = C.accent,
 })
@@ -654,6 +756,7 @@ footer:addLabel({
 footer:addLabel({
     x = 10,
     y = 1,
+    width = basalt.fill(),
     text = basalt.computed(function()
         return "IN " .. withUnit(averageInput:get()) .. "/t"
     end),
@@ -663,6 +766,7 @@ footer:addLabel({
 footer:addLabel({
     x = 27,
     y = 1,
+    width = basalt.fill(),
     text = basalt.computed(function()
         return "OUT " .. withUnit(averageOutput:get()) .. "/t"
     end),
@@ -672,6 +776,7 @@ footer:addLabel({
 footer:addLabel({
     x = 45,
     y = 1,
+    width = basalt.fill(),
     text = basalt.computed(function()
         return "NET " .. signed(averageNet:get()) .. "/t"
     end),
@@ -681,6 +786,7 @@ footer:addLabel({
 footer:addLabel({
     x = "{parent.width - 9}",
     y = 1,
+    width = basalt.fill(),
     text = basalt.computed(function()
         return #inputHistory .. "/60"
     end),
