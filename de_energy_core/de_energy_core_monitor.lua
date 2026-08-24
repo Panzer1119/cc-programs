@@ -14,7 +14,7 @@ basalt.use("charts")
 local SAMPLE_INTERVAL = 1
 local HISTORY_LENGTH = 60
 
-local PYLON_TYPES = { "energy_pylon", "energyPylon" }
+local ENERGY_CORE_TYPES = { "draconic_rf_storage", "draconicRfStorage", "energy_pylon", "energyPylon" }
 
 local UNITS = { "RF", "FE", "OP" }
 
@@ -199,18 +199,18 @@ end
 -- Peripheral handling
 ------------------------------------------------------------
 
-local pylon
-local pylonName
+local energyCore
+local energyCoreName
 
 local monitor
 local monitorName
 
-local function findPylon()
-    for _, typeName in ipairs(PYLON_TYPES) do
-        local name, wrapped = peripheral.find(typeName)
+local function findEnergyCore()
+    for _, typeName in ipairs(ENERGY_CORE_TYPES) do
+        local wrapped = peripheral.find(typeName)
 
         if wrapped then
-            return name, wrapped
+            return wrapped
         end
     end
 
@@ -223,24 +223,34 @@ end
 
 local function refreshPeripherals()
     if not monitorName or not peripheral.isPresent(monitorName) then
-        monitorName, monitor = findMonitor()
+        monitor = findMonitor()
+        if monitor then
+            monitorName = peripheral.getName(monitor)
+        else
+            monitorName = nil
+        end
     end
 
-    if not pylonName or not peripheral.isPresent(pylonName) then
-        pylonName, pylon = findPylon()
+    if not energyCoreName or not peripheral.isPresent(energyCoreName) then
+        energyCore = findEnergyCore()
+        if energyCore then
+            energyCoreName = peripheral.getName(energyCore)
+        else
+            energyCoreName = nil
+        end
     end
 
-    connected:set(pylon ~= nil)
+    connected:set(energyCore ~= nil)
 end
 
-local function callPylon(method)
-    local fn = pylon and pylon[method]
+local function callEnergyCore(method)
+    local fn = energyCore and energyCore[method]
 
     if type(fn) ~= "function" then
         return false, nil
     end
 
-    return pcall(fn, pylon)
+    return pcall(fn, energyCore)
 end
 
 ------------------------------------------------------------
@@ -258,15 +268,15 @@ end
 local function sample()
     refreshPeripherals()
 
-    if not pylon then
+    if not energyCore then
         connected:set(false)
         return
     end
 
-    local okEnergy, newEnergy = callPylon("getEnergyStored")
-    local okMax, newMax = callPylon("getMaxEnergyStored")
-    local okInput, newInput = callPylon("getInputPerTick")
-    local okOutput, newOutput = callPylon("getOutputPerTick")
+    local okEnergy, newEnergy = callEnergyCore("getEnergyStored")
+    local okMax, newMax = callEnergyCore("getMaxEnergyStored")
+    local okInput, newInput = callEnergyCore("getInputPerTick")
+    local okOutput, newOutput = callEnergyCore("getOutputPerTick")
 
     if not (okEnergy and okMax and okInput and okOutput) then
         connected:set(false)
@@ -312,6 +322,8 @@ end
 -- UI
 ------------------------------------------------------------
 
+refreshPeripherals()
+
 local frame = basalt.createFrame(
     monitor,
     "EnergyCore"
@@ -343,7 +355,7 @@ header:addLabel({
     y = 2,
     text = basalt.computed(function()
         if connected:get() then
-            return "● ONLINE  ·  " .. tostring(pylonName or "")
+            return "● ONLINE  ·  " .. tostring(energyCoreName or "")
         end
 
         return "● DISCONNECTED  ·  SEARCHING..."
@@ -362,8 +374,8 @@ local corePanel = frame:addFrame({
     y = 5,
     width = function(self)
         return self.parent.width >= 60
-            and math.floor((self.parent.width - 5) / 2)
-            or self.parent.width - 4
+        and math.floor((self.parent.width - 5) / 2)
+        or self.parent.width - 4
     end,
     height = 8,
     background = C.panel,
@@ -452,8 +464,8 @@ corePanel:addProgressBar({
 local ratePanel = frame:addFrame({
     x = function(self)
         return self.parent.width >= 60
-            and math.floor(self.parent.width / 2) + 1
-            or 2
+        and math.floor(self.parent.width / 2) + 1
+        or 2
     end,
 
     y = function(self)
@@ -462,8 +474,8 @@ local ratePanel = frame:addFrame({
 
     width = function(self)
         return self.parent.width >= 60
-            and self.parent.width - math.floor(self.parent.width / 2) - 2
-            or self.parent.width - 4
+        and self.parent.width - math.floor(self.parent.width / 2) - 2
+        or self.parent.width - 4
     end,
 
     height = 8,
@@ -696,3 +708,5 @@ end)
 ------------------------------------------------------------
 
 basalt.run()
+
+print("Energy Core Monitor stopped.")
