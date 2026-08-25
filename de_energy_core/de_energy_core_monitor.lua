@@ -103,7 +103,9 @@ end)
 
 -- Sampler timing feedback.
 local sampleIntervalDelayMs = basalt.signal(0)
+local sampleIntervalDelayTicks = basalt.signal(0)
 local graphRefreshDelayMs = basalt.signal(0)
+local graphRefreshDelayTicks = basalt.signal(0)
 
 ------------------------------------------------------------
 -- Settings Persistence
@@ -433,12 +435,12 @@ local headerEndData = header:addColumn({ width = basalt.auto(), height = basalt.
 :addRow({ width = basalt.fill(), height = basalt.fill(), gap = 1 })
 
 headerEndData:addLabel({
-    width = 7,
+    width = #"S:9999ms/99.9t",
     text = basalt.computed(function()
-        return string.format("%4.0f ms", sampleIntervalDelayMs:get())
+        return string.format("S:%4.0fms/%2.1ft", sampleIntervalDelayMs:get(), sampleIntervalDelayTicks:get())
     end),
     foreground = basalt.computed(function()
-        local pct = sampleIntervalDelayMs:get() / (sampleIntervalSeconds:get() * 1000)
+        local pct = sampleIntervalDelayTicks:get() / (sampleIntervalSeconds:get() * 20)
         if pct < 0.5 then
             return C.good elseif pct < 1.0 then
             return C.warning
@@ -448,12 +450,12 @@ headerEndData:addLabel({
 })
 
 headerEndData:addLabel({
-    width = 7,
+    width = #"G:9999ms/99.9t",
     text = basalt.computed(function()
-        return string.format("%4.0f ms", graphRefreshDelayMs:get())
+        return string.format("G:%4.0fms/%2.1ft", graphRefreshDelayMs:get(), graphRefreshDelayTicks:get())
     end),
     foreground = basalt.computed(function()
-        local pct = graphRefreshDelayMs:get() / (graphRefreshIntervalSeconds:get() * 1000)
+        local pct = graphRefreshDelayTicks:get() / (graphRefreshIntervalSeconds:get() * 20)
         if pct < 0.5 then
             return C.good elseif pct < 1.0 then
             return C.warning
@@ -835,14 +837,15 @@ mainPage:addRow({ width = basalt.fill(), height = 1, background = C.panel })
 ------------------------------------------------------------
 
 basalt.schedule(function()
-    local nextRun = utils.getUnixTimestamp()
+    local nextRunTick = utils.getClockTick()
     while true do
-        local now = utils.getUnixTimestamp()
-        if now < nextRun then
-            sleep(nextRun - now)
+        local nowTick = utils.getClockTick()
+        if nowTick < nextRunTick then
+            sleep((nextRunTick - nowTick) / 20)
         end
 
-        local startedAt = utils.getUnixTimestamp()
+        local startedAtEpoch = utils.getUnixTimestamp()
+        local startedAtTick = utils.getClockTick()
         refreshPeripherals()
 
         if energyCore then
@@ -852,12 +855,15 @@ basalt.schedule(function()
             connected:set(false)
         end
 
-        sampleIntervalDelayMs:set(math.floor((utils.getUnixTimestamp() - startedAt) * 1000))
+        local sampledAtEpoch = utils.getUnixTimestamp()
+        local sampledAtTick = utils.getClockTick()
+        sampleIntervalDelayMs:set((sampledAtEpoch - startedAtEpoch) * 1000)
+        sampleIntervalDelayTicks:set(sampledAtTick - startedAtTick)
 
-        local interval = sampleIntervalSeconds:get()
-        nextRun = nextRun + interval
-        while nextRun < utils.getUnixTimestamp() do
-            nextRun = nextRun + interval
+        local intervalTicks = sampleIntervalSeconds:get() * 20
+        nextRunTick = nextRunTick + intervalTicks
+        while nextRunTick < utils.getClockTick() do
+            nextRunTick = nextRunTick + intervalTicks
         end
     end
 end)
@@ -867,25 +873,29 @@ end)
 ------------------------------------------------------------
 
 basalt.schedule(function()
-    local nextRun = utils.getUnixTimestamp()
+    local nextRunTick = utils.getClockTick()
     while true do
-        local now = utils.getUnixTimestamp()
-        if now < nextRun then
-            sleep(nextRun - now)
+        local nowTick = utils.getClockTick()
+        if nowTick < nextRunTick then
+            sleep((nextRunTick - nowTick) / 20)
         end
 
-        local startedAt = utils.getUnixTimestamp()
+        local startedAtEpoch = utils.getUnixTimestamp()
+        local startedAtTick = utils.getClockTick()
         local ok = pcall(refreshFromLatestSample)
         if not ok then
         -- Keep the monitor alive even if one refresh tick fails.
         end
 
-        graphRefreshDelayMs:set(math.floor((utils.getUnixTimestamp() - startedAt) * 1000))
+        local refreshedAtEpoch = utils.getUnixTimestamp()
+        local refreshedAtTick = utils.getClockTick()
+        graphRefreshDelayMs:set((refreshedAtEpoch - startedAtEpoch) * 1000)
+        graphRefreshDelayTicks:set(refreshedAtTick - startedAtTick)
 
-        local interval = graphRefreshIntervalSeconds:get()
-        nextRun = nextRun + interval
-        while nextRun < utils.getUnixTimestamp() do
-            nextRun = nextRun + interval
+        local intervalTicks = graphRefreshIntervalSeconds:get() * 20
+        nextRunTick = nextRunTick + intervalTicks
+        while nextRunTick < utils.getClockTick() do
+            nextRunTick = nextRunTick + intervalTicks
         end
     end
 end)

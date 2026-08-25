@@ -66,4 +66,9 @@ function M.getUnixTimestamp()
     return os.time(os.date("*t"))
 end
 
+--TODO Is this correct?
+function M.getClockTick()
+    return os.clock() * 20
+end
+
 return M
