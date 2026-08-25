@@ -113,6 +113,7 @@ local inputHistory = {}
 local outputHistory = {}
 
 local lastSample = 0
+local sampleIntervalDelayMs = basalt.signal(0)
 
 ------------------------------------------------------------
 -- Computed values
@@ -1022,7 +1023,9 @@ basalt.schedule(function()
         end
 
         local now = os.clock()
-        local delay = SAMPLE_INTERVAL_SECONDS - (now - lastSample)
+        local sampleIntervalDelaySeconds = now - lastSample
+        local delay = SAMPLE_INTERVAL_SECONDS - sampleIntervalDelaySeconds
+        sampleIntervalDelayMs.set(math.floor(sampleIntervalDelaySeconds * 1000))
         sleep(math.max(0, delay))
     end
 end)
