@@ -476,7 +476,10 @@ local corePanel = frame:addFrame({
         or self.parent.width - 4
     end,
     --width = basalt.fill(),
-    height = 5,
+    --height = 5,
+    height = basalt.computed(function()
+        return isInfinite:get() and 5 or 5 + 2
+    end),
     background = C.panel,
 })
 
@@ -868,7 +871,10 @@ local graphPanel = frame:addFrame({
     x = 2,
 
     y = function(self)
-        --return self.parent.width >= 60 and 14 or 23
+        --TODO Use flex layout for this
+        if isFinite:get() then
+            return self.parent.width >= 60 and 14 or 23
+        end
         return self.parent.width >= 60 and 11 or 20
     end,
 
@@ -876,8 +882,10 @@ local graphPanel = frame:addFrame({
     width = "{parent.width - 2}",
 
     height = function(self)
-        --local top = self.parent.width >= 60 and 14 or 23
         local top = self.parent.width >= 60 and 11 or 20
+        if isFinite:get() then
+            top = self.parent.width >= 60 and 14 or 23
+        end
 
         return math.max(
             12,
