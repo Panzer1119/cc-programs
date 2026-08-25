@@ -176,7 +176,7 @@ local function withEnergyUnit(value, forceSign, forceSpace)
 end
 
 local function withEnergyRateUnit(value, forceSign, forceSpace)
-    return si(value * energyUnitFactor:get() / rateUnitFactor:get(), energyUnit:get() .. rateUnit:get(), forceSign, forceSpace)
+    return si(value * energyUnitFactor:get() * rateUnitFactor:get(), energyUnit:get() .. rateUnit:get(), forceSign, forceSpace)
 end
 
 -- Energy values
