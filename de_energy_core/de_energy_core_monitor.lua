@@ -15,7 +15,16 @@ local DEFAULT_SAMPLE_INTERVAL_SECONDS = 1
 local DEFAULT_HISTORY_LENGTH_SECONDS = 60
 
 local SAMPLE_INTERVAL_OPTIONS = { 0.25, 0.5, 1, 5, 10 }
+local FORMATTED_SAMPLE_INTERVAL_OPTIONS = {}
+for _, v in ipairs(SAMPLE_INTERVAL_OPTIONS) do
+    --FORMATTED_SAMPLE_INTERVAL_OPTIONS[#FORMATTED_SAMPLE_INTERVAL_OPTIONS + 1] = string.format("%2.2f Hz", v)
+    FORMATTED_SAMPLE_INTERVAL_OPTIONS[#FORMATTED_SAMPLE_INTERVAL_OPTIONS + 1] = string.format("%2.2f s", v)
+end
 local HISTORY_LENGTH_OPTIONS = { 10, 60, 120, 300, 600 }
+local FORMATTED_HISTORY_LENGTH_OPTIONS = {}
+for _, v in ipairs(HISTORY_LENGTH_OPTIONS) do
+    FORMATTED_HISTORY_LENGTH_OPTIONS[#FORMATTED_HISTORY_LENGTH_OPTIONS + 1] = string.format("%3d s", v)
+end
 local MAX_HISTORY_LENGTH = math.ceil(HISTORY_LENGTH_OPTIONS[#HISTORY_LENGTH_OPTIONS] / SAMPLE_INTERVAL_OPTIONS[1])
 
 local function findDefaultOptionIndex(options, defaultValue)
@@ -39,8 +48,13 @@ local DEFAULT_DATETIME_STRING_LENGTH = #"2026-08-25 16:14:33"
 --local MONITOR_TEXT_SCALES = { 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0 }
 local MONITOR_TEXT_SCALES = { 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0 }
 -- multiply all scales by 2 so no decimals in the dropdown
+local SCALED_MONITOR_TEXT_SCALES = {}
 for i, v in ipairs(MONITOR_TEXT_SCALES) do
-    MONITOR_TEXT_SCALES[i] = v * 2
+    SCALED_MONITOR_TEXT_SCALES[i] = v * 2
+end
+local FORMATTED_SCALED_MONITOR_TEXT_SCALES = {}
+for _, v in ipairs(SCALED_MONITOR_TEXT_SCALES) do
+    FORMATTED_SCALED_MONITOR_TEXT_SCALES[#FORMATTED_SCALED_MONITOR_TEXT_SCALES + 1] = string.format("x%d", v)
 end
 
 local ENERGY_CORE_TYPES = { "draconic_rf_storage", "draconicRfStorage", "energy_pylon", "energyPylon" }
@@ -677,7 +691,7 @@ local function refreshPeripherals()
     if not monitorName or not peripheral.isPresent(monitorName) then
         monitor = findMonitor()
         if monitor then
-            monitor.setTextScale(monitorTextScale:get() / 2)
+            monitor.setTextScale(monitorTextScale:get())
             monitorName = peripheral.getName(monitor)
             print("Using monitor: " .. monitorName)
         else
@@ -888,6 +902,7 @@ local function sample()
     --TODO This is probably bad for the performance, no?
     ---- Rebuild from persisted history so dynamic interval/history settings stay in sync.
     --fillGraphFromHistory()
+
     persistHistory()
 end
 
@@ -1036,43 +1051,45 @@ headerEndData:addLabel({
 --local sampleIntervalDropdown = settingsRow:addDropdown({
 local sampleIntervalDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (5 + 1 + 5 + 1 + 3 + 1 + 4 + 1 + 4) + 1}",
+    --x = "{parent.width - (5+4 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}", -- Hz
+    x = "{parent.width - (5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}", -- s
     y = "{parent.y + 1}",
-    width = 5,
-    text = tostring(SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]),
-    dropHeight = #SAMPLE_INTERVAL_OPTIONS,
-    items = SAMPLE_INTERVAL_OPTIONS,
+    --width = 5+4, -- Hz
+    width = 5+3, -- s
+    text = tostring(FORMATTED_SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]),
+    dropHeight = #FORMATTED_SAMPLE_INTERVAL_OPTIONS,
+    items = FORMATTED_SAMPLE_INTERVAL_OPTIONS,
     background = C.muted,
 })
 
 --local historyLengthDropdown = settingsRow:addDropdown({
 local historyLengthDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (5 + 1 + 3 + 1 + 4 + 1 + 4) + 1}",
+    x = "{parent.width - (5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
-    width = 5,
-    text = tostring(HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]),
-    dropHeight = #HISTORY_LENGTH_OPTIONS,
-    items = HISTORY_LENGTH_OPTIONS,
+    width = 5 + 2,
+    text = tostring(FORMATTED_HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]),
+    dropHeight = #FORMATTED_HISTORY_LENGTH_OPTIONS,
+    items = FORMATTED_HISTORY_LENGTH_OPTIONS,
     background = C.muted,
 })
 
 --local monitorTextScaleDropdown = settingsRow:addDropdown({
 local monitorTextScaleDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (3 + 1 + 4 + 1 + 4) + 1}",
+    x = "{parent.width - (3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
-    width = 3,
-    text = tostring(MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()]),
-    dropHeight = #MONITOR_TEXT_SCALES,
-    items = MONITOR_TEXT_SCALES,
+    width = 3 + 1,
+    text = tostring(FORMATTED_SCALED_MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()]),
+    dropHeight = #FORMATTED_SCALED_MONITOR_TEXT_SCALES,
+    items = FORMATTED_SCALED_MONITOR_TEXT_SCALES,
     background = C.muted,
 })
 
 monitorTextScaleDropdown:bind("selected", monitorTextScaleIndex)
 monitorTextScaleDropdown:onSelect(function(self, index, item)
     if monitor then
-        monitor.setTextScale(item.value / 2)
+        monitor.setTextScale(MONITOR_TEXT_SCALES[index])
     end
     persistUserSettings()
 end)
