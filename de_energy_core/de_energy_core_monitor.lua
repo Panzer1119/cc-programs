@@ -427,12 +427,23 @@ local frame = basalt.createFrame(
 frame.background = C.bg
 
 ------------------------------------------------------------
+-- Main Layout (Outer Column)
+------------------------------------------------------------
+
+local mainPage = frame:addColumn({
+    x = 1,
+    y = 1,
+    width = basalt.fill(),
+    height = basalt.fill(),
+    gap = 1,
+    padding = 1,
+})
+
+------------------------------------------------------------
 -- Header
 ------------------------------------------------------------
 
-local header = frame:addFrame({
-    x = 1,
-    y = 1,
+local header = mainPage:addFrame({
     width = basalt.fill(),
     height = 3,
     background = C.panel,
@@ -441,7 +452,6 @@ local header = frame:addFrame({
 header:addLabel({
     x = 2,
     y = 1,
-    --width = basalt.fill(),
     text = "DRACONIC EVOLUTION ENERGY CORE",
     foreground = C.accent,
 })
@@ -468,7 +478,6 @@ header:addLabel({
     text = basalt.computed(function()
         return string.format("%4.0f ms", sampleIntervalDelayMs:get())
     end),
-    --foreground = C.muted,
     foreground = basalt.computed(function()
         local value = sampleIntervalDelayMs:get()
         if not value then
@@ -497,22 +506,26 @@ header:addLabel({
 })
 
 ------------------------------------------------------------
--- Core panel
+-- Core and Rate Panels Row
 ------------------------------------------------------------
 
-local corePanel = frame:addFrame({
-    x = 2,
-    y = 5,
-    width = function(self)
-        return self.parent.width >= 60
-        and math.floor((self.parent.width - 5) / 2)
-        or self.parent.width - 4
-    end,
-    --width = basalt.fill(),
-    --height = 5,
-    height = basalt.computed(function()
-        return isInfinite:get() and 5 or 5 + 2
-    end),
+local contentPanel = mainPage:addColumn({
+    width = basalt.fill(),
+    height = basalt.fill(),
+    gap = 1,
+})
+
+local topPanelsRow = contentPanel:addRow({
+    width = basalt.fill(),
+    height = basalt.auto(),
+    gap = 1,
+})
+
+local corePanel = topPanelsRow:addFrame({
+    width = basalt.fill(1),
+    minWidth = 30,
+    height = basalt.auto(),
+    shrink = 1,
     background = C.panel,
 })
 
@@ -603,29 +616,11 @@ corePanel:addProgressBar({
 -- Power panel
 ------------------------------------------------------------
 
-local ratePanel = frame:addFrame({
-    x = function(self)
-        return self.parent.width >= 60
-        and math.floor(self.parent.width / 2) + 1
-        or 2
-    end,
-
-    y = function(self)
-        return self.parent.width >= 60 and 5 or 14
-    end,
-
-    width = function(self)
-        return self.parent.width >= 60
-        --and self.parent.width - math.floor(self.parent.width / 2) - 2
-        --or self.parent.width - 2
-        and self.parent.width - math.floor(self.parent.width / 2) - 1
-        or self.parent.width - 4
-    end,
-
-    --TODO Use flex layout for this?
-    height = basalt.computed(function()
-        return isInfinite:get() and 5 or 5 + 2
-    end),
+local ratePanel = topPanelsRow:addFrame({
+    width = basalt.fill(1),
+    minWidth = 30,
+    height = basalt.auto(),
+    shrink = 1,
     background = C.panel,
 })
 
@@ -765,18 +760,11 @@ ratePanelRow = ratePanelRow + 1
 -- Unit selectors
 ------------------------------------------------------------
 
-local monitorTextScaleDropdown = frame:addDropdown({
-    --local monitorTextScaleDropdown = header:addDropdown({
-    --x = function(self)
-    --    return self.parent.width - 15
-    --end,
+local monitorTextScaleDropdown = header:addDropdown({
     x = function(self)
         return self.parent.width - 4 - 5 - 5 + 1
     end,
-    --y = 1,
     y = 2,
-    --z = 2,
-    --width = 13,
     width = 3,
     text = "1.0",
     dropHeight = #MONITOR_TEXT_SCALES,
@@ -794,36 +782,22 @@ end)
 -- Unit selectors
 ------------------------------------------------------------
 
-local energyUnitDropdown = frame:addDropdown({
-    --local energyUnitDropdown = header:addDropdown({
-    --x = function(self)
-    --    return self.parent.width - 15
-    --end,
+local energyUnitDropdown = header:addDropdown({
     x = function(self)
         return self.parent.width - 5 - 5 + 1
     end,
-    --y = 1,
     y = 2,
-    --z = 2,
-    --width = 13,
     width = 4,
     text = "RF",
     dropHeight = #ENERGY_UNITS,
     items = ENERGY_UNITS,
 })
 
-local rateUnitDropdown = frame:addDropdown({
-    --local rateUnitDropdown = header:addDropdown({
-    --x = function(self)
-    --    return self.parent.width - 15
-    --end,
+local rateUnitDropdown = header:addDropdown({
     x = function(self)
         return self.parent.width - 5 + 1
     end,
-    --y = 1,
     y = 2,
-    --z = 2,
-    --width = 13,
     width = 4,
     text = "/t",
     dropHeight = #RATE_UNITS,
@@ -900,65 +874,29 @@ rateUnitDropdown:bind("selected", rateUnitIndex)
 --end)
 
 ------------------------------------------------------------
--- Graph
+-- Graph Panel (with integrated footer content)
 ------------------------------------------------------------
 
-local graphPanel = frame:addFrame({
-    x = 2,
-
-    y = function(self)
-    --TODO Use flex layout for this?
-        if isFinite:get() then
-            return self.parent.width >= 60 and 13 or 22
-        end
-        return self.parent.width >= 60 and 11 or 20
-    end,
-
-    --width = "{parent.width - 4}",
-    width = "{parent.width - 2}",
-
-    height = function(self)
-    --TODO Use flex layout for this?
-        local top = self.parent.width >= 60 and 11 or 20
-        if isFinite:get() then
-            top = self.parent.width >= 60 and 13 or 22
-        end
-
-        --TODO Use flex layout for this?
-        return math.max(
-            isInfinite:get() and 12 or 10,
-            self.parent.height - top - 5
-        )
-    end,
-
+local graphPanelContainer = contentPanel:addColumn({
+    width = basalt.fill(),
+    height = basalt.fill(),
+    gap = 1,
     background = C.panel,
 })
 
-graphPanel:addLabel({
-    x = 2,
-    y = 1,
-    --width = basalt.fill(),
+local graphHeader = graphPanelContainer:addRow({
+    width = basalt.fill(),
+    height = basalt.auto(),
+})
+
+graphHeader:addLabel({
+    width = basalt.auto(),
     text = "RATE HISTORY - " .. HISTORY_LENGTH_SECONDS .. " SECONDS",
     foreground = C.accent,
 })
 
---graphPanel:addLabel({
---    x = "{parent.width - 28}",
---    y = 1,
---    text = "- INPUT",
---    foreground = C.input,
---})
---
---graphPanel:addLabel({
---    x = "{parent.width - 28 + 11}",
---    y = 1,
---    text = "- OUTPUT",
---    foreground = C.output,
---})
-
-local toggleVisibilityInputGraph = graphPanel:addButton({
-    x = "{parent.width - 28}",
-    y = 1,
+local toggleVisibilityInputGraph = graphHeader:addButton({
+    width = basalt.auto(),
     height = 1,
     text = "- INPUT",
     foreground = basalt.computed(function()
@@ -967,9 +905,8 @@ local toggleVisibilityInputGraph = graphPanel:addButton({
     background = C.muted,
 })
 
-local toggleVisibilityOutputGraph = graphPanel:addButton({
-    x = "{parent.width - 28 + 11}",
-    y = 1,
+local toggleVisibilityOutputGraph = graphHeader:addButton({
+    width = basalt.auto(),
     height = 1,
     text = "- OUTPUT",
     foreground = basalt.computed(function()
@@ -978,15 +915,9 @@ local toggleVisibilityOutputGraph = graphPanel:addButton({
     background = C.muted,
 })
 
-graph = graphPanel:addPixelGraph({
-    x = 2,
-    y = 3,
-    width = "{parent.width - 3}",
-    height = function(self)
-    --return math.max(12 - 3, self.parent.height - 4)
-    --TODO Use flex layout for this?
-        return math.max((isInfinite:get() and 12 or 10) - 3, self.parent.height - 3)
-    end,
+graph = graphPanelContainer:addPixelGraph({
+    width = basalt.fill(),
+    height = basalt.fill(),
     minValue = 0,
     maxValue = 100,
 })
@@ -995,20 +926,12 @@ graph:addSeries("input", {
     color = C.input,
     pointCount = HISTORY_LENGTH,
     visible = true,
-    -- Does not work somehow
-    --visible = basalt.computed(function()
-    --    return showInputGraph:get()
-    --end),
 })
 
 graph:addSeries("output", {
     color = C.output,
     pointCount = HISTORY_LENGTH,
     visible = true,
-    -- Does not work somehow
-    --visible = basalt.computed(function()
-    --    return showOutputGraph:get()
-    --end),
 })
 
 toggleVisibilityInputGraph:onClick(function()
@@ -1022,29 +945,23 @@ toggleVisibilityOutputGraph:onClick(function()
 end)
 
 ------------------------------------------------------------
--- Footer
+-- Graph Footer (with averages)
 ------------------------------------------------------------
 
-local footer = frame:addFrame({
-    x = 2,
-    y = "{parent.height - 2}",
-    --width = "{parent.width - 4}",
-    width = "{parent.width - 2}",
-    height = 2,
-    background = C.panel,
+local graphFooter = graphPanelContainer:addRow({
+    width = basalt.fill(),
+    height = basalt.auto(),
+    gap = 1,
+    padding = 1,
 })
 
-footer:addLabel({
-    x = 2,
-    y = 1,
-    --width = basalt.fill(),
+graphFooter:addLabel({
+    width = basalt.auto(),
     text = "" .. HISTORY_LENGTH_SECONDS .. "S AVG",
     foreground = C.accent,
 })
 
-footer:addLabel({
-    x = 10,
-    y = 1,
+graphFooter:addLabel({
     width = basalt.fill(),
     text = basalt.computed(function()
         return "IN " .. averageInputRateText()
@@ -1052,26 +969,27 @@ footer:addLabel({
     foreground = C.input,
 })
 
-footer:addLabel({
-    x = 27,
-    y = 1,
+graphFooter:addLabel({
+    width = basalt.auto(),
+    text = "OUT",
+    foreground = C.output,
+})
+
+graphFooter:addLabel({
     width = basalt.fill(),
     text = basalt.computed(function()
-        return "OUT " .. averageOutputRateText()
+        return averageOutputRateText()
     end),
     foreground = C.output,
 })
 
-footer:addLabel({
-    x = 45,
-    y = 1,
+graphFooter:addLabel({
+    width = basalt.auto(),
     text = "NET",
     foreground = C.net,
 })
 
-footer:addLabel({
-    x = 45 + 4,
-    y = 1,
+graphFooter:addLabel({
     width = basalt.fill(),
     text = basalt.computed(function()
         return averageNetRateText()
@@ -1081,14 +999,29 @@ footer:addLabel({
     end),
 })
 
-footer:addLabel({
-    x = "{parent.width - 9}",
-    y = 1,
-    width = basalt.fill(),
+graphFooter:addLabel({
+    width = basalt.auto(),
     text = basalt.computed(function()
         return #inputHistory .. "/" .. HISTORY_LENGTH
     end),
     foreground = C.muted,
+})
+
+------------------------------------------------------------
+-- Bottom Footer (always at bottom)
+------------------------------------------------------------
+
+local footer = mainPage:addRow({
+    width = basalt.fill(),
+    height = basalt.auto(),
+    background = C.panel,
+})
+
+footer:addLabel({
+    x = 2,
+    y = 1,
+    text = "Ready",
+    foreground = C.good,
 })
 
 ------------------------------------------------------------
