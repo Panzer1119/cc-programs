@@ -18,6 +18,7 @@ local HISTORY_LENGTH = math.ceil(HISTORY_LENGTH_SECONDS / SAMPLE_INTERVAL_SECOND
 local DEFAULT_PERCENTAGE_NUMBER_LENGTH = #"100.00 %"
 local DEFAULT_ENERGY_NUMBER_LENGTH = #"+999.99 kRF"
 local DEFAULT_ENERGY_RATE_NUMBER_LENGTH = #"+999.99 kRF/t"
+local DEFAULT_DATETIME_STRING_LENGTH = #"2026-08-25 16:14:33"
 
 --local MONITOR_TEXT_SCALES = { 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0 }
 local MONITOR_TEXT_SCALES = { 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0 }
@@ -447,23 +448,33 @@ local mainPage = frame:addColumn({
 -- Header
 ------------------------------------------------------------
 
-local header = mainPage:addFrame({
+local header = mainPage:addRow({
     width = basalt.fill(),
     height = 2,
+    gap = 1,
+    --padding = 1,
+    justify = "spaceBetween",
     background = C.panel,
 })
 
-header:addLabel({
-    x = 2,
-    y = 1,
+-- Header start column (title and status)
+
+local headerStart = header:addColumn({
+    width = basalt.auto(),
+    height = basalt.fill(),
+})
+
+-- Title
+
+headerStart:addLabel({
     text = "DRACONIC EVOLUTION ENERGY CORE",
     foreground = C.accent,
 })
 
-header:addLabel({
-    x = 2,
-    y = 2,
-    width = basalt.fill(),
+-- Status
+
+headerStart:addLabel({
+    width = basalt.auto(),
     text = basalt.computed(function()
         if connected:get() then
             return "ONLINE - \"" .. tostring(energyCoreName or "") .. "\""
@@ -475,9 +486,22 @@ header:addLabel({
     end),
 })
 
-header:addLabel({
-    x = "{parent.width - 19 - 8}",
-    y = 1,
+-- Header end column (sample interval, time and settings)
+
+local headerEnd = header:addColumn({
+    width = basalt.auto(),
+    height = basalt.fill(),
+})
+
+-- Header end row (sample interval and time)
+
+local headerEndData = headerEnd:addRow({
+    width = basalt.fill(),
+    height = basalt.fill(),
+    gap = 1,
+})
+
+headerEndData:addLabel({
     width = 7,
     text = basalt.computed(function()
         return string.format("%4.0f ms", sampleIntervalDelayMs:get())
@@ -499,15 +523,91 @@ header:addLabel({
     end),
 })
 
-header:addLabel({
-    x = "{parent.width - 19}",
-    y = 1,
-    width = 19,
+headerEndData:addLabel({
+    width = DEFAULT_DATETIME_STRING_LENGTH,
     text = basalt.computed(function()
         return os.date("%Y-%m-%d %H:%M:%S")
     end),
     foreground = C.muted,
 })
+
+---- Header end row (settings)
+--
+--local headerEndSettings = headerEnd:addRow({
+--    width = basalt.fill(),
+--    height = basalt.fill(),
+--    gap = 1,
+--})
+
+------------------------------------------------------------
+-- Settings
+------------------------------------------------------------
+
+--FIXME When using this and opening a dropdown,
+-- it always moves the selected dropdown to the right side,
+-- no matter where the dropdown was
+--local settingsRow = mainPage:addRow({
+--    position = "absolute",
+--    x = "{parent.width - (3 + 1 + 4 + 1 + 4) + 1}",
+--    y = "{parent.y + 1}",
+--    width = 3 + 1 + 4 + 1 + 4,
+--    minHeight = 1,
+--    maxHeight = 1 + math.max(#MONITOR_TEXT_SCALES, #ENERGY_UNITS, #RATE_UNITS),
+--    gap = 1,
+--    --padding = 1,
+--    z = 10,
+--})
+
+-- Monitor text scale selector
+
+--local monitorTextScaleDropdown = settingsRow:addDropdown({
+local monitorTextScaleDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - (3 + 1 + 4 + 1 + 4) + 1}",
+    y = "{parent.y + 1}",
+    width = 3,
+    text = "2",
+    dropHeight = #MONITOR_TEXT_SCALES,
+    items = MONITOR_TEXT_SCALES,
+    background = C.muted,
+})
+
+monitorTextScaleDropdown:bind("selected", monitorTextScaleIndex)
+monitorTextScaleDropdown:onSelect(function(self, index, item)
+    if monitor then
+        monitor.setTextScale(item.value / 2)
+    end
+end)
+
+-- Unit selectors
+
+--local energyUnitDropdown = settingsRow:addDropdown({
+local energyUnitDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - (4 + 1 + 4) + 1}",
+    y = "{parent.y + 1}",
+    width = 4,
+    text = "RF",
+    dropHeight = #ENERGY_UNITS,
+    items = ENERGY_UNITS,
+    background = C.muted,
+})
+
+--local rateUnitDropdown = settingsRow:addDropdown({
+local rateUnitDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - (4) + 1}",
+    y = "{parent.y + 1}",
+    width = 4,
+    text = "/t",
+    dropHeight = #RATE_UNITS,
+    items = RATE_UNITS,
+    background = C.muted,
+})
+
+energyUnitDropdown:bind("selected", energyUnitIndex)
+rateUnitDropdown:bind("selected", rateUnitIndex)
+
 
 ------------------------------------------------------------
 -- Core and Rate Panels Row
@@ -752,54 +852,6 @@ ratePanelNet:addLabel({
 })
 
 ------------------------------------------------------------
--- Monitor text scale selector
-------------------------------------------------------------
-
-local monitorTextScaleDropdown = mainPage:addDropdown({
-    position = "absolute",
-    x = "{parent.width - 1 - 4 - 1 - 4 - 1 - 3}",
-    y = "{parent.y + 1}",
-    width = 3,
-    text = "1.0",
-    dropHeight = #MONITOR_TEXT_SCALES,
-    items = MONITOR_TEXT_SCALES,
-})
-
-monitorTextScaleDropdown:bind("selected", monitorTextScaleIndex)
-monitorTextScaleDropdown:onSelect(function(self, index, item)
-    if monitor then
-        monitor.setTextScale(item.value / 2)
-    end
-end)
-
-------------------------------------------------------------
--- Unit selectors
-------------------------------------------------------------
-
-local energyUnitDropdown = mainPage:addDropdown({
-    position = "absolute",
-    x = "{parent.width - 1 - 4 - 1 - 4}",
-    y = "{parent.y + 1}",
-    width = 4,
-    text = "RF",
-    dropHeight = #ENERGY_UNITS,
-    items = ENERGY_UNITS,
-})
-
-local rateUnitDropdown = mainPage:addDropdown({
-    position = "absolute",
-    x = "{parent.width - 1 - 4}",
-    y = "{parent.y + 1}",
-    width = 4,
-    text = "/t",
-    dropHeight = #RATE_UNITS,
-    items = RATE_UNITS,
-})
-
-energyUnitDropdown:bind("selected", energyUnitIndex)
-rateUnitDropdown:bind("selected", rateUnitIndex)
-
-------------------------------------------------------------
 -- Graph Panel (with integrated footer content)
 ------------------------------------------------------------
 
@@ -823,7 +875,7 @@ local graphHeader = graphPanelContainer:addRow({
 
 graphHeader:addLabel({
     width = basalt.auto(),
-    text = " RATE HISTORY - " .. HISTORY_LENGTH_SECONDS .. " SECONDS",
+    text = "RATE HISTORY - " .. HISTORY_LENGTH_SECONDS .. " SECONDS",
     foreground = C.accent,
 })
 
@@ -895,7 +947,7 @@ local graphFooter = graphPanelContainer:addRow({
 
 graphFooter:addLabel({
     width = basalt.auto(),
-    text = " " .. HISTORY_LENGTH_SECONDS .. "S AVG",
+    text = "" .. HISTORY_LENGTH_SECONDS .. "S AVG",
     foreground = C.accent,
 })
 
