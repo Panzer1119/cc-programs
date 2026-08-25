@@ -26,18 +26,28 @@ function M.findIndex(t, value)
 end
 
 -- Format a number with an SI prefix, e.g. 1 500 000 → " 1.50 M<unit>".
+-- Supports sub-unit prefixes (m=milli, u=micro, n=nano, p=pico, f=femto) for
+-- values with absolute magnitude < 1.
 -- forceSign – prepend "+" for positive numbers (aligns signed columns).
 -- forceSpace – reserve sign space without actually printing a sign.
 function M.si(n, unit, forceSign, forceSpace)
     if not n then
         return "N/A"
     end
-    n = math.floor(n)
-    local prefixes = { "", "k", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" }
-    local i = 1
-    while math.abs(n) >= 1000 and i < #prefixes do
-        n = n / 1000
-        i = i + 1
+    -- Prefixes ordered from quecto (10^-30) to quetta (10^30).
+    -- Index OFFSET corresponds to the empty prefix (×10^0).
+    local prefixes = { "q", "r", "y", "z", "a", "f", "p", "n", "u", "m", "", "k", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" }
+    local OFFSET = 11 -- index of "" (no prefix)
+    local i = OFFSET
+    if n ~= 0 then
+        while math.abs(n) >= 1000 and i < #prefixes do
+            n = n / 1000
+            i = i + 1
+        end
+        while math.abs(n) < 1 and i > 1 do
+            n = n * 1000
+            i = i - 1
+        end
     end
     local fmt = forceSign and "%+7.2f %s%s"
     or forceSpace and "%7.2f %s%s"
