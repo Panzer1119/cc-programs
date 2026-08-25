@@ -16,7 +16,19 @@ local HISTORY_LENGTH = 60
 
 local ENERGY_CORE_TYPES = { "draconic_rf_storage", "draconicRfStorage", "energy_pylon", "energyPylon" }
 
-local UNITS = { "RF", "FE", "OP" }
+local ENERGY_UNITS = { "RF", "FE", "OP", "AE" }
+local ENERGY_UNIT_FACTORS = {
+    RF = 1,
+    FE = 1,
+    OP = 1,
+    AE = 0.5,
+}
+local ENERGY_RATE_UNITS = { "/t", "/s", "/m" }
+local ENERGY_RATE_UNIT_FACTORS = {
+    ["/t"] = 1,
+    ["/s"] = 20,
+    ["/m"] = 1200,
+}
 
 local TIER_CAPACITY = {
     [45500000]      = 1,
@@ -57,7 +69,12 @@ local input = basalt.signal(0)
 local output = basalt.signal(0)
 
 local connected = basalt.signal(false)
-local unit = basalt.signal("RF")
+
+-- TODO Persist user preferences for units and rate units
+local energyUnit = basalt.signal("RF")
+local energyUnitFactor = basalt.signal(1)
+local energyRateUnit = basalt.signal("/t")
+local energyRateUnitFactor = basalt.signal(1)
 
 -- Rolling samples. These are internal application data;
 -- the four signals above remain the primary live state.
@@ -84,7 +101,7 @@ local isFinite = basalt.computed(function()
     return tier:get() < 8
 end)
 
-local charge = basalt.computed(function()
+local chargePercentage = basalt.computed(function()
     local max = maxEnergy:get()
 
     if max <= 0 then
@@ -137,68 +154,79 @@ end)
 -- Formatting
 ------------------------------------------------------------
 
-local function compact(value)
-    local abs = math.abs(value)
-
-    if abs < 1000 then
-        return string.format("%.0f", value)
+local function si(n, unit, forceSign, forceSpace)
+    if not n then
+        return "N/A"
     end
 
-    local suffix = {
-        "k", "M", "G", "T", "P", "E", "Z"
-    }
+    n = math.floor(n)
+    local prefixes = {"", "k", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q"}
+    local i = 1
 
-    local i = 0
-
-    while abs >= 1000 and i < #suffix do
-        value = value / 1000
-        abs = abs / 1000
+    while math.abs(n) >= 1000 and i < #prefixes do
+        n = n / 1000
         i = i + 1
     end
 
-    if abs >= 100 then
-        return string.format("%.0f %s", value, suffix[i])
-    elseif abs >= 10 then
-        return string.format("%.1f %s", value, suffix[i])
-    else
-        return string.format("%.2f %s", value, suffix[i])
-    end
+    return string.format(forceSign and "%+7.2f %s%s" or (forceSpace and "%7.2f %s%s" or "%6.2f %s%s"), n, prefixes[i], unit or "")
 end
 
-local function withUnit(value)
-    return compact(value) .. unit:get()
+local function withEnergyUnit(value, forceSign, forceSpace)
+    return si(value * energyUnitFactor:get(), energyUnit:get(), forceSign, forceSpace)
 end
 
-local function signed(value)
-    if value > 0 then
-        return "+" .. withUnit(value)
-    end
-
-    return withUnit(value)
+local function withEnergyRateUnit(value, forceSign, forceSpace)
+    return si(value * energyUnitFactor:get() / energyRateUnitFactor:get(), energyUnit:get() .. energyRateUnit:get(), forceSign, forceSpace)
 end
+
+-- Energy values
 
 local function energyText()
-    return withUnit(energy:get())
+    return withEnergyUnit(energy:get())
 end
 
 local function capacityText()
-    if isInfinite:get() then
+    local value = maxEnergy:get()
+    if value and isInfinite:get() then
         return "Infinite"
     end
-
-    return withUnit(maxEnergy:get())
+    return withEnergyUnit(value)
 end
 
-local function chargeText()
-    local value = charge:get()
-
-    if not value then
-        return "N/A"
-    elseif isInfinite:get() then
+local function chargePercentageText()
+    local value = chargePercentage:get()
+    if value and isInfinite:get() then
         return "Infinite capacity"
     end
-
     return string.format("%.1f%%", value)
+end
+
+-- Energy rate values
+
+local function inputRateText()
+    return withEnergyRateUnit(input:get())
+end
+
+local function outputRateText()
+    return withEnergyRateUnit(output:get())
+end
+
+local function netRateText()
+    return withEnergyRateUnit(net:get(), true)
+end
+
+-- Average energy rate values
+
+local function averageInputRateText()
+    return withEnergyRateUnit(averageInput:get())
+end
+
+local function averageOutputRateText()
+    return withEnergyRateUnit(averageOutput:get())
+end
+
+local function averageNetRateText()
+    return withEnergyRateUnit(averageNet:get(), true)
 end
 
 ------------------------------------------------------------
@@ -387,7 +415,6 @@ local corePanel = frame:addFrame({
     --width = basalt.fill(),
     height = 8,
     background = C.panel,
-    --background = colors.red,
 })
 
 corePanel:addLabel({
@@ -402,9 +429,6 @@ corePanel:addLabel({
     x = 2,
     y = 2,
     width = basalt.fill(),
-    --text = "Test",
-    --text = basalt.computed(function() return "Eest 2" end),
-    --text = tier:map(function(value) return "Sest 3" end),
     text = basalt.computed(function()
         return "Tier: " .. tier:get()
     end),
@@ -434,10 +458,10 @@ corePanel:addLabel({
     width = basalt.fill(),
     visible = isFinite,
     text = basalt.computed(function()
-        return "Charge: " .. chargeText()
+        return "Charge: " .. chargePercentageText()
     end),
     foreground = basalt.computed(function()
-        local value = charge:get()
+        local value = chargePercentage:get()
 
         if not value then
             return C.accent
@@ -456,13 +480,13 @@ corePanel:addProgressBar({
     y = 6,
     width = "{parent.width - 3}",
     visible = isFinite,
-    progress = charge:map(function(value)
+    progress = chargePercentage:map(function(value)
         return value or 100
     end),
     showPercentage = false,
     background = C.bg,
     barColor = basalt.computed(function()
-        local value = charge:get()
+        local value = chargePercentage:get()
 
         if not value then
             return C.accent
@@ -525,7 +549,7 @@ ratePanel:addLabel({
     y = ratePanelRow,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return withUnit(input:get()) .. "/t"
+        return inputRateText()
     end),
     foreground = C.input,
 })
@@ -544,7 +568,7 @@ ratePanel:addLabel({
     y = ratePanelRow,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return withUnit(output:get()) .. "/t"
+        return outputRateText()
     end),
     foreground = C.output,
 })
@@ -563,7 +587,7 @@ ratePanelRow = ratePanelRow + 1
 --    y = ratePanelRow,
 --    width = basalt.fill(),
 --    text = basalt.computed(function()
---        return withUnit(averageInput:get()) .. "/t"
+--        return averageInputRateText()
 --    end),
 --    foreground = C.input,
 --})
@@ -582,7 +606,7 @@ ratePanelRow = ratePanelRow + 1
 --    y = ratePanelRow,
 --    width = basalt.fill(),
 --    text = basalt.computed(function()
---        return withUnit(averageOutput:get()) .. "/t"
+--        return averageOutputRateText()
 --    end),
 --    foreground = C.output,
 --})
@@ -601,7 +625,7 @@ ratePanel:addLabel({
     y = ratePanelRow,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return signed(net:get()) .. "/t"
+        return netRateText()
     end),
     --foreground = C.net,
     foreground = basalt.computed(function()
@@ -623,7 +647,7 @@ ratePanelRow = ratePanelRow + 1
 --    y = ratePanelRow,
 --    width = basalt.fill(),
 --    text = basalt.computed(function()
---        return signed(averageNet:get()) .. "/t"
+--        return averageNetRateText()
 --    end),
 --    --foreground = C.net,
 --    foreground = basalt.computed(function()
@@ -637,7 +661,7 @@ ratePanelRow = ratePanelRow + 1
 -- Unit selector
 ------------------------------------------------------------
 
-local unitButton = frame:addButton({
+local energyUnitButton = frame:addButton({
     x = function(self)
         return self.parent.width - 15
     end,
@@ -646,7 +670,7 @@ local unitButton = frame:addButton({
     width = 13,
     height = 2,
 
-    text = unit:map(function(value)
+    text = energyUnit:map(function(value)
         return value .. "  >"
     end),
 
@@ -654,18 +678,18 @@ local unitButton = frame:addButton({
     foreground = C.accent,
 })
 
-unitButton:onClick(function()
-    unit:update(function(current)
+energyUnitButton:onClick(function()
+    energyUnit:update(function(current)
         local index = 1
 
-        for i, value in ipairs(UNITS) do
+        for i, value in ipairs(ENERGY_UNITS) do
             if value == current then
                 index = i
                 break
             end
         end
 
-        return UNITS[index % #UNITS + 1]
+        return ENERGY_UNITS[index % #ENERGY_UNITS + 1]
     end)
 end)
 
@@ -758,7 +782,7 @@ footer:addLabel({
     y = 1,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return "IN " .. withUnit(averageInput:get()) .. "/t"
+        return "IN " .. averageInputRateText()
     end),
     foreground = C.input,
 })
@@ -768,7 +792,7 @@ footer:addLabel({
     y = 1,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return "OUT " .. withUnit(averageOutput:get()) .. "/t"
+        return "OUT " .. averageOutputRateText()
     end),
     foreground = C.output,
 })
@@ -778,7 +802,7 @@ footer:addLabel({
     y = 1,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return "NET " .. signed(averageNet:get()) .. "/t"
+        return "NET " .. averageNetRateText()
     end),
     foreground = C.net,
 })
