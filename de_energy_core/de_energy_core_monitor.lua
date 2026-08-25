@@ -836,8 +836,16 @@ graphPanel:addLabel({
     x = "{parent.width - 28}",
     y = 1,
     --width = basalt.fill(),
-    text = "- INPUT   - OUTPUT",
-    foreground = C.muted,
+    text = "- INPUT",
+    foreground = C.input,
+})
+
+graphPanel:addLabel({
+    x = "{parent.width - 28 + 11}",
+    y = 1,
+    --width = basalt.fill(),
+    text = "- OUTPUT",
+    foreground = C.output,
 })
 
 graph = graphPanel:addPixelGraph({
