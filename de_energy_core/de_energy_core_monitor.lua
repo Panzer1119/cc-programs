@@ -690,7 +690,7 @@ local energyUnitDropdown = frame:addDropdown({
     --    return self.parent.width - 15
     --end,
     x = function(self)
-        return self.parent.width - 5 - 5
+        return self.parent.width - 5 - 5 + 1
     end,
     --y = 1,
     y = 2,
@@ -708,7 +708,7 @@ local rateUnitDropdown = frame:addDropdown({
     --    return self.parent.width - 15
     --end,
     x = function(self)
-        return self.parent.width - 5
+        return self.parent.width - 5 + 1
     end,
     --y = 1,
     y = 2,
