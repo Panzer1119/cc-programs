@@ -112,6 +112,8 @@ end)
 local inputHistory = {}
 local outputHistory = {}
 
+local lastSample = 0
+
 ------------------------------------------------------------
 -- Computed values
 ------------------------------------------------------------
@@ -344,6 +346,7 @@ local function push(history, value)
 end
 
 local function sample()
+    lastSample = os.clock()
     refreshPeripherals()
 
     if not energyCore then
@@ -1006,7 +1009,9 @@ basalt.schedule(function()
             connected:set(false)
         end
 
-        sleep(SAMPLE_INTERVAL_SECONDS)
+        local now = os.clock()
+        local delay = SAMPLE_INTERVAL_SECONDS - (now - lastSample)
+        sleep(math.max(0, delay))
     end
 end)
 
