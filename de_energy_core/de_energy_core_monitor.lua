@@ -826,14 +826,14 @@ mainPage:addRow({ width = basalt.fill(), height = 1, background = C.panel })
 ------------------------------------------------------------
 
 basalt.schedule(function()
-    local nextRun = os.clock()
+    local nextRun = utils.getUnixTimestamp()
     while true do
-        local now = os.clock()
+        local now = utils.getUnixTimestamp()
         if now < nextRun then
             sleep(nextRun - now)
         end
 
-        local startedAt = os.epoch("utc")
+        local startedAt = utils.getUnixTimestamp()
         refreshPeripherals()
 
         if energyCore then
@@ -843,11 +843,11 @@ basalt.schedule(function()
             connected:set(false)
         end
 
-        sampleIntervalDelayMs:set(os.epoch("utc") - startedAt)
+        sampleIntervalDelayMs:set(math.floor((utils.getUnixTimestamp() - startedAt) * 1000))
 
         local interval = sampleIntervalSeconds:get()
         nextRun = nextRun + interval
-        while nextRun < os.clock() do
+        while nextRun < utils.getUnixTimestamp() do
             nextRun = nextRun + interval
         end
     end
@@ -858,24 +858,24 @@ end)
 ------------------------------------------------------------
 
 basalt.schedule(function()
-    local nextRun = os.clock()
+    local nextRun = utils.getUnixTimestamp()
     while true do
-        local now = os.clock()
+        local now = utils.getUnixTimestamp()
         if now < nextRun then
             sleep(nextRun - now)
         end
 
-        local startedAt = os.epoch("utc")
+        local startedAt = utils.getUnixTimestamp()
         local ok = pcall(refreshFromLatestSample)
         if not ok then
         -- Keep the monitor alive even if one refresh tick fails.
         end
 
-        graphRefreshDelayMs:set(os.epoch("utc") - startedAt)
+        graphRefreshDelayMs:set(math.floor((utils.getUnixTimestamp() - startedAt) * 1000))
 
         local interval = graphRefreshIntervalSeconds:get()
         nextRun = nextRun + interval
-        while nextRun < os.clock() do
+        while nextRun < utils.getUnixTimestamp() do
             nextRun = nextRun + interval
         end
     end
