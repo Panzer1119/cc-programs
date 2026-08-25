@@ -589,7 +589,8 @@ local ratePanel = frame:addFrame({
         or self.parent.width - 4
     end,
 
-    height = 5,
+    --TODO Use flex layout for this?
+    height = isInfinite:get() and 5 or 7,
     background = C.panel,
 })
 
@@ -871,9 +872,9 @@ local graphPanel = frame:addFrame({
     x = 2,
 
     y = function(self)
-        --TODO Use flex layout for this
+        --TODO Use flex layout for this?
         if isFinite:get() then
-            return self.parent.width >= 60 and 14 or 23
+            return self.parent.width >= 60 and 13 or 22
         end
         return self.parent.width >= 60 and 11 or 20
     end,
@@ -882,13 +883,15 @@ local graphPanel = frame:addFrame({
     width = "{parent.width - 2}",
 
     height = function(self)
+        --TODO Use flex layout for this?
         local top = self.parent.width >= 60 and 11 or 20
         if isFinite:get() then
-            top = self.parent.width >= 60 and 14 or 23
+            top = self.parent.width >= 60 and 13 or 22
         end
 
+        --TODO Use flex layout for this?
         return math.max(
-            12,
+            isInfinite:get() and 12 or 10,
             self.parent.height - top - 5
         )
     end,
@@ -926,7 +929,8 @@ graph = graphPanel:addPixelGraph({
     width = "{parent.width - 3}",
     height = function(self)
         --return math.max(12 - 3, self.parent.height - 4)
-        return math.max(12 - 3, self.parent.height - 3)
+        --TODO Use flex layout for this?
+        return math.max((isInfinite:get() and 12 or 10) - 3, self.parent.height - 3)
     end,
     minValue = 0,
     maxValue = 100,
