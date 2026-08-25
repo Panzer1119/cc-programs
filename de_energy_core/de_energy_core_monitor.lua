@@ -37,11 +37,11 @@ local output = basalt.signal(0)
 local connected = basalt.signal(false)
 
 -- User-controlled settings.
-local monitorTextScaleIndex = basalt.signal(savedSettings.monitorTextScaleIndex)
-local energyUnitIndex = basalt.signal(savedSettings.energyUnitIndex)
-local rateUnitIndex = basalt.signal(savedSettings.rateUnitIndex)
-local sampleIntervalIndex = basalt.signal(savedSettings.sampleIntervalIndex)
-local historyLengthIndex = basalt.signal(savedSettings.historyLengthIndex)
+local monitorTextScaleIndex = basalt.signal(utils.findIndex(const.MONITOR_TEXT_SCALES, savedSettings.monitorTextScale))
+local energyUnitIndex = basalt.signal(utils.findIndex(const.ENERGY_UNITS, savedSettings.energyUnit))
+local rateUnitIndex = basalt.signal(utils.findIndex(const.RATE_UNITS, savedSettings.rateUnit))
+local sampleIntervalIndex = basalt.signal(utils.findIndex(const.SAMPLE_INTERVAL_OPTIONS, savedSettings.sampleInterval))
+local historyLengthIndex = basalt.signal(utils.findIndex(const.HISTORY_LENGTH_OPTIONS, savedSettings.historyLength))
 local showInputGraph = basalt.signal(savedSettings.showInputGraph)
 local showOutputGraph = basalt.signal(savedSettings.showOutputGraph)
 
@@ -100,11 +100,11 @@ local sampleIntervalDelayMs = basalt.signal(0)
 -- Call whenever a setting signal changes to write all settings to disk.
 local function persistSettings()
     settings.save({
-        monitorTextScaleIndex = monitorTextScaleIndex:get(),
-        energyUnitIndex = energyUnitIndex:get(),
-        rateUnitIndex = rateUnitIndex:get(),
-        sampleIntervalIndex = sampleIntervalIndex:get(),
-        historyLengthIndex = historyLengthIndex:get(),
+        monitorTextScale = monitorTextScale:get(),
+        energyUnit = energyUnit:get(),
+        rateUnit = rateUnit:get(),
+        sampleInterval = sampleIntervalSeconds:get(),
+        historyLength = historyLengthSeconds:get(),
         showInputGraph = showInputGraph:get(),
         showOutputGraph = showOutputGraph:get(),
     })

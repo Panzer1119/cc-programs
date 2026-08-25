@@ -14,11 +14,11 @@ local function sanitize(s)
     s = type(s) == "table" and s or {}
     local d = const.DEFAULT_SETTINGS
     return {
-        monitorTextScaleIndex = utils.clamp(tonumber(s.monitorTextScaleIndex) or d.monitorTextScaleIndex, 1, #const.MONITOR_TEXT_SCALES),
-        energyUnitIndex = utils.clamp(tonumber(s.energyUnitIndex) or d.energyUnitIndex, 1, #const.ENERGY_UNITS),
-        rateUnitIndex = utils.clamp(tonumber(s.rateUnitIndex) or d.rateUnitIndex, 1, #const.RATE_UNITS),
-        sampleIntervalIndex = utils.clamp(tonumber(s.sampleIntervalIndex) or d.sampleIntervalIndex, 1, #const.SAMPLE_INTERVAL_OPTIONS),
-        historyLengthIndex = utils.clamp(tonumber(s.historyLengthIndex) or d.historyLengthIndex, 1, #const.HISTORY_LENGTH_OPTIONS),
+        monitorTextScale = const.MONITOR_TEXT_SCALES[utils.findIndex(const.MONITOR_TEXT_SCALES, s.monitorTextScale)],
+        energyUnit = const.ENERGY_UNITS[utils.findIndex(const.ENERGY_UNITS, s.energyUnit)],
+        rateUnit = const.RATE_UNITS[utils.findIndex(const.RATE_UNITS, s.rateUnit)],
+        sampleInterval = const.SAMPLE_INTERVAL_OPTIONS[utils.findIndex(const.SAMPLE_INTERVAL_OPTIONS, s.sampleInterval)],
+        historyLength = const.HISTORY_LENGTH_OPTIONS[utils.findIndex(const.HISTORY_LENGTH_OPTIONS, s.historyLength)],
         showInputGraph = s.showInputGraph == nil and d.showInputGraph or not not s.showInputGraph,
         showOutputGraph = s.showOutputGraph == nil and d.showOutputGraph or not not s.showOutputGraph,
     }

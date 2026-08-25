@@ -143,11 +143,11 @@ M.C = {
 ------------------------------------------------------------
 
 M.DEFAULT_SETTINGS = {
-    monitorTextScaleIndex = M.DEFAULT_MONITOR_TEXT_SCALE_INDEX,
-    energyUnitIndex = M.DEFAULT_ENERGY_UNIT_INDEX,
-    rateUnitIndex = M.DEFAULT_RATE_UNIT_INDEX,
-    sampleIntervalIndex = M.DEFAULT_SAMPLE_INTERVAL_INDEX,
-    historyLengthIndex = M.DEFAULT_HISTORY_LENGTH_INDEX,
+    monitorTextScale = M.DEFAULT_MONITOR_TEXT_SCALE,
+    energyUnit = M.DEFAULT_ENERGY_UNIT,
+    rateUnit = M.DEFAULT_RATE_UNIT,
+    sampleInterval = M.DEFAULT_SAMPLE_INTERVAL_SECONDS,
+    historyLength = M.DEFAULT_HISTORY_LENGTH_SECONDS,
     showInputGraph = true,
     showOutputGraph = true,
 }
