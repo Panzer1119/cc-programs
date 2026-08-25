@@ -55,8 +55,14 @@ function M.si(n, unit, forceSign, forceSpace)
     return string.format(fmt, n, prefixes[i], unit or "")
 end
 
--- Current wall-clock Unix timestamp (integer seconds).
+-- Current wall-clock Unix timestamp in seconds.
+-- Uses CC:Tweaked's millisecond epoch when available so sub-second sampling
+-- intervals can be represented accurately, and falls back to integer seconds
+-- in plain Lua environments.
 function M.getUnixTimestamp()
+    if os.epoch then
+        return os.epoch("utc") / 1000
+    end
     return os.time(os.date("*t"))
 end
 
