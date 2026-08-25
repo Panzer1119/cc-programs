@@ -467,7 +467,7 @@ headerEndData:addLabel({
 
 local sampleIntervalSecondsDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (5+3 + 1 + 5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
+    x = "{parent.width - (2+1+2+2+2 + 1 + 2+1+2+2+2 + 1 + 3+2+2 + 1 + 1+2+2 + 1 + 2+2 + 1 + 2+2) + 1}",
     y = "{parent.y + 1}",
     width = 2 + 1 + 2 + 2 + 2,
     text = const.FORMATTED_SAMPLE_INTERVAL_SECONDS_OPTIONS[sampleIntervalSecondsIndex:get()],
@@ -478,7 +478,7 @@ local sampleIntervalSecondsDropdown = mainPage:addDropdown({
 
 local graphRefreshIntervalSecondsDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
+    x = "{parent.width - (2+1+2+2+2 + 1 + 3+2+2 + 1 + 1+2+2 + 1 + 2+2 + 1 + 2+2) + 1}",
     y = "{parent.y + 1}",
     width = 2 + 1 + 2 + 2 + 2,
     text = const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS[graphRefreshIntervalSecondsIndex:get()],
@@ -489,7 +489,7 @@ local graphRefreshIntervalSecondsDropdown = mainPage:addDropdown({
 
 local graphWindowSecondsDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
+    x = "{parent.width - (3+2+2 + 1 + 1+2+2 + 1 + 2+2 + 1 + 2+2) + 1}",
     y = "{parent.y + 1}",
     width = 3 + 2 + 2,
     text = const.FORMATTED_GRAPH_WINDOW_SECONDS_OPTIONS[graphWindowSecondsIndex:get()],
@@ -500,7 +500,7 @@ local graphWindowSecondsDropdown = mainPage:addDropdown({
 
 local monitorTextScaleDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (3+1 + 1 + 4 + 1 + 4) + 1}",
+    x = "{parent.width - (1+2+2 + 1 + 2+2 + 1 + 2+2) + 1}",
     y = "{parent.y + 1}",
     width = 1 + 2 + 2,
     text = const.FORMATTED_SCALED_MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()],
@@ -511,7 +511,7 @@ local monitorTextScaleDropdown = mainPage:addDropdown({
 
 local energyUnitDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (4 + 1 + 4) + 1}",
+    x = "{parent.width - (2+2 + 1 + 2+2) + 1}",
     y = "{parent.y + 1}",
     width = 2 + 2,
     text = const.ENERGY_UNITS[energyUnitIndex:get()],
@@ -522,7 +522,7 @@ local energyUnitDropdown = mainPage:addDropdown({
 
 local rateUnitDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - 4 + 1}",
+    x = "{parent.width - (2+2) + 1}",
     y = "{parent.y + 1}",
     width = 2 + 2,
     text = const.RATE_UNITS[rateUnitIndex:get()],
