@@ -13,6 +13,7 @@ basalt.use("charts")
 
 local SAMPLE_INTERVAL_SECONDS = 1
 local HISTORY_LENGTH_SECONDS = 60
+local HISTORY_LENGTH = HISTORY_LENGTH_SECONDS / SAMPLE_INTERVAL_SECONDS
 
 --local MONITOR_TEXT_SCALES = { 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0 }
 local MONITOR_TEXT_SCALES = { 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0 }
@@ -916,13 +917,13 @@ graph = graphPanel:addPixelGraph({
 
 graph:addSeries("input", {
     color = C.input,
-    pointCount = HISTORY_LENGTH_SECONDS,
+    pointCount = HISTORY_LENGTH,
     visible = true,
 })
 
 graph:addSeries("output", {
     color = C.output,
-    pointCount = HISTORY_LENGTH_SECONDS,
+    pointCount = HISTORY_LENGTH,
     visible = true,
 })
 
