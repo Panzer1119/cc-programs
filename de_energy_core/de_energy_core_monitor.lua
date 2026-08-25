@@ -74,10 +74,24 @@ local output = basalt.signal(0)
 local connected = basalt.signal(false)
 
 -- TODO Persist user preferences for units and rate units
-local energyUnit = basalt.signal("RF")
-local energyUnitFactor = basalt.signal(1)
-local rateUnit = basalt.signal("/t")
-local rateUnitFactor = basalt.signal(1)
+local energyUnitIndex = basalt.signal(1)
+--local energyUnit = basalt.signal("RF")
+local energyUnit = basalt.computed(function()
+    return ENERGY_UNITS[energyUnitIndex:get()]
+end)
+--local energyUnitFactor = basalt.signal(1)
+local energyUnitFactor = basalt.computed(function()
+    return ENERGY_UNIT_FACTORS[energyUnit:get()]
+end)
+local rateUnitIndex = basalt.signal(1)
+--local rateUnit = basalt.signal("/t")
+local rateUnit = basalt.computed(function()
+    return RATE_UNITS[rateUnitIndex:get()]
+end)
+--local rateUnitFactor = basalt.signal(1)
+local rateUnitFactor = basalt.computed(function()
+    return RATE_UNIT_FACTORS[rateUnit:get()]
+end)
 
 -- Rolling samples. These are internal application data;
 -- the four signals above remain the primary live state.
@@ -667,74 +681,109 @@ ratePanelRow = ratePanelRow + 1
 --ratePanelVerticalIndex = ratePanelVerticalIndex + 1
 
 ------------------------------------------------------------
--- Unit selector
+-- Unit selectors
 ------------------------------------------------------------
 
-local energyUnitButton = frame:addButton({
+local energyUnitDropdown = frame:addDropdown({
+    --x = function(self)
+    --    return self.parent.width - 15
+    --end,
     x = function(self)
-        return self.parent.width - 15
+        return self.parent.width - 5 - 5
     end,
-
-    y = 1,
-    width = 13,
-    height = 1,
-
-    text = energyUnit:map(function(value)
-        return value .. "  >"
-    end),
-
-    background = C.panel,
-    foreground = C.accent,
-})
-
-energyUnitButton:onClick(function()
-    energyUnit:update(function(current)
-        local index = 1
-
-        for i, value in ipairs(ENERGY_UNITS) do
-            if value == current then
-                index = i
-                break
-            end
-        end
-
-        return ENERGY_UNITS[index % #ENERGY_UNITS + 1]
-    end)
-    energyUnitFactor:set(ENERGY_UNIT_FACTORS[energyUnit:get()])
-end)
-
-local rateUnitButton = frame:addButton({
-    x = function(self)
-        return self.parent.width - 15
-    end,
-
+    --y = 1,
     y = 2,
-    width = 13,
-    height = 1,
-
-    text = rateUnit:map(function(value)
-        return value .. "  >"
-    end),
-
-    background = C.panel,
-    foreground = C.accent,
+    --width = 13,
+    width = 4,
+    text = "RF",
+    dropHeight = 5,
+    items = ENERGY_UNITS,
 })
 
-rateUnitButton:onClick(function()
-    rateUnit:update(function(current)
-        local index = 1
+local rateUnitDropdown = frame:addDropdown({
+    --x = function(self)
+    --    return self.parent.width - 15
+    --end,
+    x = function(self)
+        return self.parent.width - 5
+    end,
+    --y = 1,
+    y = 2,
+    --width = 13,
+    width = 4,
+    text = "/t",
+    dropHeight = 5,
+    items = RATE_UNITS,
+})
 
-        for i, value in ipairs(RATE_UNITS) do
-            if value == current then
-                index = i
-                break
-            end
-        end
+energyUnitDropdown:bind("selected", energyUnitIndex)
+rateUnitDropdown:bind("selected", rateUnitIndex)
 
-        return RATE_UNITS[index % #RATE_UNITS + 1]
-    end)
-    rateUnitFactor:set(RATE_UNIT_FACTORS[rateUnit:get()])
-end)
+--local energyUnitButton = frame:addButton({
+--    x = function(self)
+--        return self.parent.width - 15
+--    end,
+--
+--    y = 1,
+--    width = 13,
+--    height = 1,
+--
+--    text = energyUnit:map(function(value)
+--        return value .. "  >"
+--    end),
+--
+--    background = C.panel,
+--    foreground = C.accent,
+--})
+--
+--energyUnitButton:onClick(function()
+--    energyUnit:update(function(current)
+--        local index = 1
+--
+--        for i, value in ipairs(ENERGY_UNITS) do
+--            if value == current then
+--                index = i
+--                break
+--            end
+--        end
+--
+--        return ENERGY_UNITS[index % #ENERGY_UNITS + 1]
+--    end)
+--    energyUnitFactor:set(ENERGY_UNIT_FACTORS[energyUnit:get()])
+--end)
+--
+--local rateUnitButton = frame:addButton({
+--    x = function(self)
+--        return self.parent.width - 15
+--    end,
+--
+--    y = 2,
+--    width = 13,
+--    height = 1,
+--
+--    text = rateUnit:map(function(value)
+--        return value .. "  >"
+--    end),
+--
+--    background = C.panel,
+--    foreground = C.accent,
+--})
+--
+--rateUnitButton:onClick(function()
+--    rateUnit:update(function(current)
+--        local index = 1
+--
+--        for i, value in ipairs(RATE_UNITS) do
+--            if value == current then
+--                index = i
+--                break
+--            end
+--        end
+--
+--        return RATE_UNITS[index % #RATE_UNITS + 1]
+--    end)
+--    rateUnitFactor:set(RATE_UNIT_FACTORS[rateUnit:get()])
+--end)
 
 ------------------------------------------------------------
 -- Graph
