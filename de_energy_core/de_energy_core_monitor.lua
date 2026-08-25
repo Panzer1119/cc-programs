@@ -195,7 +195,9 @@ end
 
 local function chargePercentageText()
     local value = chargePercentage:get()
-    if value and isInfinite:get() then
+    if not value then
+        return "N/A"
+    elseif value and isInfinite:get() then
         return "Infinite capacity"
     end
     return string.format("%.1f%%", value)
