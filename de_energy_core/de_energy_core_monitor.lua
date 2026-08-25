@@ -23,8 +23,8 @@ local ENERGY_UNIT_FACTORS = {
     OP = 1,
     AE = 0.5,
 }
-local ENERGY_RATE_UNITS = { "/t", "/s", "/m" }
-local ENERGY_RATE_UNIT_FACTORS = {
+local RATE_UNITS = { "/t", "/s", "/m" }
+local RATE_UNIT_FACTORS = {
     ["/t"] = 1,
     ["/s"] = 20,
     ["/m"] = 1200,
@@ -73,8 +73,8 @@ local connected = basalt.signal(false)
 -- TODO Persist user preferences for units and rate units
 local energyUnit = basalt.signal("RF")
 local energyUnitFactor = basalt.signal(1)
-local energyRateUnit = basalt.signal("/t")
-local energyRateUnitFactor = basalt.signal(1)
+local rateUnit = basalt.signal("/t")
+local rateUnitFactor = basalt.signal(1)
 
 -- Rolling samples. These are internal application data;
 -- the four signals above remain the primary live state.
@@ -176,7 +176,7 @@ local function withEnergyUnit(value, forceSign, forceSpace)
 end
 
 local function withEnergyRateUnit(value, forceSign, forceSpace)
-    return si(value * energyUnitFactor:get() / energyRateUnitFactor:get(), energyUnit:get() .. energyRateUnit:get(), forceSign, forceSpace)
+    return si(value * energyUnitFactor:get() / rateUnitFactor:get(), energyUnit:get() .. rateUnit:get(), forceSign, forceSpace)
 end
 
 -- Energy values
@@ -694,7 +694,7 @@ energyUnitButton:onClick(function()
     energyUnitFactor:set(ENERGY_UNIT_FACTORS[energyUnit:get()])
 end)
 
-local energyRateUnitButton = frame:addButton({
+local rateUnitButton = frame:addButton({
     x = function(self)
         return self.parent.width - 15
     end,
@@ -703,7 +703,7 @@ local energyRateUnitButton = frame:addButton({
     width = 13,
     height = 1,
 
-    text = energyRateUnit:map(function(value)
+    text = rateUnit:map(function(value)
         return value .. "  >"
     end),
 
@@ -711,20 +711,20 @@ local energyRateUnitButton = frame:addButton({
     foreground = C.accent,
 })
 
-energyRateUnitButton:onClick(function()
-    energyRateUnit:update(function(current)
+rateUnitButton:onClick(function()
+    rateUnit:update(function(current)
         local index = 1
 
-        for i, value in ipairs(ENERGY_RATE_UNITS) do
+        for i, value in ipairs(RATE_UNITS) do
             if value == current then
                 index = i
                 break
             end
         end
 
-        return ENERGY_RATE_UNITS[index % #ENERGY_RATE_UNITS + 1]
+        return RATE_UNITS[index % #RATE_UNITS + 1]
     end)
-    energyRateUnitFactor:set(ENERGY_RATE_UNIT_FACTORS[energyRateUnit:get()])
+    rateUnitFactor:set(RATE_UNIT_FACTORS[rateUnit:get()])
 end)
 
 ------------------------------------------------------------
