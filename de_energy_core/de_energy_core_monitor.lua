@@ -455,6 +455,29 @@ header:addLabel({
 })
 
 header:addLabel({
+    x = "{parent.width - 19 - 8}",
+    y = 1,
+    width = 7,
+    text = basalt.computed(function()
+        return string.format("%4.0f ms", sampleIntervalDelayMs:get())
+    end),
+    --foreground = C.muted,
+    foreground = basalt.computed(function()
+        local value = sampleIntervalDelayMs:get()
+
+        if not value then
+            return C.muted
+        elseif value < 500 then
+            return C.good
+        elseif value < 1000 then
+            return C.warning
+        end
+
+        return C.danger
+    end),
+})
+
+header:addLabel({
     x = "{parent.width - 19}",
     y = 1,
     width = 19,
@@ -1025,7 +1048,7 @@ basalt.schedule(function()
         local now = os.clock()
         local sampleIntervalDelaySeconds = now - lastSample
         local delay = SAMPLE_INTERVAL_SECONDS - sampleIntervalDelaySeconds
-        sampleIntervalDelayMs.set(math.floor(sampleIntervalDelaySeconds * 1000))
+        sampleIntervalDelayMs:set(math.floor(sampleIntervalDelaySeconds * 1000))
         sleep(math.max(0, delay))
     end
 end)
