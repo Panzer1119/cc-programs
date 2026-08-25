@@ -225,6 +225,7 @@ local function refreshPeripherals()
         energyCore = findEnergyCore()
         if energyCore then
             energyCoreName = peripheral.getName(energyCore)
+            maxEnergy:set(0)
             if not monitor then
                 print("Using energy core: " .. energyCoreName)
             end
@@ -332,10 +333,18 @@ local lastRenderedSampleSerial = 0
 
 local function sample()
     local okE, newEnergy = callEnergyCore("getEnergyStored")
-    local okM, newMax = callEnergyCore("getMaxEnergyStored")
+    -- Save time by skipping unnecessary getMaxEnergyStored() calls
+    local okM, newMax = true, maxEnergy:get()
+    if newMax == 0 then
+        okM, newMax = callEnergyCore("getMaxEnergyStored")
+    end
     local okI, newInput = callEnergyCore("getInputPerTick")
     local okO, newOutput = callEnergyCore("getOutputPerTick")
-    local okT, newTransfer = callEnergyCore("getTransferPerTick")
+    -- Save time by skipping unnecessary getTransferPerTick() calls
+    local okT, newTransfer = okI and okO, (tonumber(newInput) or 0) - (tonumber(newOutput) or 0)
+    if not okT then
+        okT, newTransfer = callEnergyCore("getTransferPerTick")
+    end
 
     if not (okE and okM and okI and okO and okT) then
         return false
@@ -538,7 +547,7 @@ end)
 
 sampleIntervalSecondsDropdown:bind("selected", sampleIntervalSecondsIndex)
 sampleIntervalSecondsDropdown:onSelect(function()
-    --trimHistoryToCurrentSettings()
+--trimHistoryToCurrentSettings()
     persistSettings()
 end)
 
