@@ -15,6 +15,10 @@ local SAMPLE_INTERVAL_SECONDS = 1
 local HISTORY_LENGTH_SECONDS = 60
 local HISTORY_LENGTH = math.ceil(HISTORY_LENGTH_SECONDS / SAMPLE_INTERVAL_SECONDS)
 
+local DEFAULT_PERCENTAGE_NUMBER_LENGTH = #"100.00 %"
+local DEFAULT_ENERGY_NUMBER_LENGTH = #"+999.99 kRF"
+local DEFAULT_ENERGY_RATE_NUMBER_LENGTH = #"+999.99 kRF/t"
+
 --local MONITOR_TEXT_SCALES = { 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0 }
 local MONITOR_TEXT_SCALES = { 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0 }
 -- multiply all scales by 2 so no decimals in the dropdown
@@ -237,17 +241,17 @@ local function chargePercentageText()
     elseif value and isInfinite:get() then
         return "Infinite capacity"
     end
-    return string.format("%.1f%%", value)
+    return string.format("%6.2f %%", value)
 end
 
 -- Energy rate values
 
 local function inputRateText()
-    return withEnergyRateUnit(input:get())
+    return withEnergyRateUnit(input:get(), false, true)
 end
 
 local function outputRateText()
-    return withEnergyRateUnit(output:get())
+    return withEnergyRateUnit(output:get(), false, true)
 end
 
 local function netRateText()
@@ -518,60 +522,104 @@ local contentPanel = mainPage:addColumn({
 local topPanelsRow = contentPanel:addRow({
     width = basalt.fill(),
     height = basalt.auto(),
-    --minHeight = 4,
-    --maxHeight = 6,
-    --shrink = 1,
     gap = 1,
 })
 
-local corePanel = topPanelsRow:addFrame({
+local corePanel = topPanelsRow:addColumn({
     width = basalt.fill(1),
     minWidth = 30,
-    height = basalt.auto(),
+    minHeight = 4,
+    shrink = 1,
     background = C.panel,
 })
 
+-- Title
+
 corePanel:addLabel({
-    x = 2,
-    y = 1,
     text = "CORE",
     foreground = C.accent,
 })
 
-corePanel:addLabel({
-    x = 2,
-    y = 2,
-    width = basalt.fill(),
+local corePanelMaxPropertyWidth = #"Capacity:"
+
+-- Tier
+
+local corePanelTier = corePanel:addRow({
+    width = corePanelMaxPropertyWidth + 1 + 1,
+    height = 1,
+    gap = 1,
+})
+
+corePanelTier:addLabel({
+    width = corePanelMaxPropertyWidth,
+    text = "Tier:",
+})
+
+corePanelTier:addLabel({
+    width = 1,
     text = basalt.computed(function()
-        return "Tier: " .. tier:get()
+        return tier:get()
     end),
 })
 
-corePanel:addLabel({
-    x = 2,
-    y = 3,
-    width = basalt.fill(),
+-- Capacity
+
+local corePanelCapacity = corePanel:addRow({
+    width = corePanelMaxPropertyWidth + 1 + DEFAULT_ENERGY_NUMBER_LENGTH,
+    height = 1,
+    gap = 1,
+})
+
+corePanelCapacity:addLabel({
+    width = corePanelMaxPropertyWidth,
+    text = "Capacity:",
+})
+
+corePanelCapacity:addLabel({
+    width = DEFAULT_ENERGY_NUMBER_LENGTH,
     text = basalt.computed(function()
-        return "Stored:   " .. energyText()
+        return capacityText()
     end),
 })
 
-corePanel:addLabel({
-    x = 2,
-    y = 4,
-    width = basalt.fill(),
+-- Stored
+
+local corePanelStored = corePanel:addRow({
+    width = corePanelMaxPropertyWidth + 1 + DEFAULT_ENERGY_NUMBER_LENGTH,
+    height = 1,
+    gap = 1,
+})
+
+corePanelStored:addLabel({
+    width = corePanelMaxPropertyWidth,
+    text = "Stored:",
+})
+
+corePanelStored:addLabel({
+    width = DEFAULT_ENERGY_NUMBER_LENGTH,
     text = basalt.computed(function()
-        return "Capacity: " .. capacityText()
+        return energyText()
     end),
 })
 
-corePanel:addLabel({
-    x = 2,
-    y = 5,
-    width = basalt.fill(),
+-- Charge percentage
+
+corePanelChargePercentage = corePanel:addRow({
+    width = corePanelMaxPropertyWidth + 1 + DEFAULT_PERCENTAGE_NUMBER_LENGTH,
+    height = 1,
+    gap = 1,
     visible = isFinite,
+})
+
+corePanelChargePercentage:addLabel({
+    width = corePanelMaxPropertyWidth,
+    text = "Charge:",
+})
+
+corePanelChargePercentage:addLabel({
+    width = DEFAULT_PERCENTAGE_NUMBER_LENGTH,
     text = basalt.computed(function()
-        return "Charge: " .. chargePercentageText()
+        return chargePercentageText()
     end),
     foreground = basalt.computed(function()
         local value = chargePercentage:get()
@@ -588,16 +636,18 @@ corePanel:addLabel({
     end),
 })
 
+-- Charge progress bar
+
 corePanel:addProgressBar({
-    x = 2,
-    y = 6,
-    width = "{parent.width - 3}",
+    width = basalt.fill(),
+    --width = "{parent.width - 2}",
+    height = 1,
     visible = isFinite,
     progress = chargePercentage:map(function(value)
         return value or 100
     end),
     showPercentage = false,
-    background = C.bg,
+    background = C.muted,
     barColor = basalt.computed(function()
         local value = chargePercentage:get()
 
@@ -617,143 +667,89 @@ corePanel:addProgressBar({
 -- Power panel
 ------------------------------------------------------------
 
-local ratePanel = topPanelsRow:addFrame({
+local ratePanel = topPanelsRow:addColumn({
     width = basalt.fill(1),
     minWidth = 30,
-    height = basalt.auto(),
+    height = basalt.fill(),
     background = C.panel,
 })
 
-local ratePanelRow = 1
+-- Title
 
 ratePanel:addLabel({
-    x = 2,
-    y = ratePanelRow,
     text = "POWER FLOW",
     foreground = C.accent,
 })
 
-ratePanelRow = ratePanelRow + 1
+local ratePanelMaxPropertyWidth = #"Output:"
 
-ratePanel:addLabel({
-    x = 2,
-    y = ratePanelRow,
+-- Input rate
+
+local ratePanelInput = ratePanel:addRow({
+    width = ratePanelMaxPropertyWidth + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
+    height = 1,
+    gap = 1,
+})
+
+ratePanelInput:addLabel({
+    width = ratePanelMaxPropertyWidth,
     text = "Input:",
     foreground = C.input,
 })
 
-ratePanel:addLabel({
-    x = 15,
-    y = ratePanelRow,
-    width = basalt.fill(),
+ratePanelInput:addLabel({
+    width = DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return inputRateText()
     end),
     foreground = C.input,
 })
 
-ratePanelRow = ratePanelRow + 1
+-- Output rate
 
-ratePanel:addLabel({
-    x = 2,
-    y = ratePanelRow,
+local ratePanelOutput = ratePanel:addRow({
+    width = ratePanelMaxPropertyWidth + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
+    height = 1,
+    gap = 1,
+})
+
+ratePanelOutput:addLabel({
+    width = ratePanelMaxPropertyWidth,
     text = "Output:",
     foreground = C.output,
 })
 
-ratePanel:addLabel({
-    x = 15,
-    y = ratePanelRow,
-    width = basalt.fill(),
+ratePanelOutput:addLabel({
+    width = DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return outputRateText()
     end),
     foreground = C.output,
 })
 
-ratePanelRow = ratePanelRow + 1
+-- Net rate
 
---ratePanel:addLabel({
---    x = 2,
---    y = ratePanelRow,
---    text = "" .. HISTORY_LENGTH_SECONDS .. "s Avg In:",
---    foreground = C.input,
---})
---
---ratePanel:addLabel({
---    x = 15,
---    y = ratePanelRow,
---    width = basalt.fill(),
---    text = basalt.computed(function()
---        return averageInputRateText()
---    end),
---    foreground = C.input,
---})
---
---ratePanelVerticalIndex = ratePanelVerticalIndex + 1
---
---ratePanel:addLabel({
---    x = 2,
---    y = ratePanelRow,
---    text = "" .. HISTORY_LENGTH_SECONDS .. "s Avg Out:",
---    foreground = C.output,
---})
---
---ratePanel:addLabel({
---    x = 15,
---    y = ratePanelRow,
---    width = basalt.fill(),
---    text = basalt.computed(function()
---        return averageOutputRateText()
---    end),
---    foreground = C.output,
---})
---
---ratePanelVerticalIndex = ratePanelVerticalIndex + 1
+local ratePanelNet = ratePanel:addRow({
+    width = ratePanelMaxPropertyWidth + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
+    height = 1,
+    gap = 1,
+})
 
-ratePanel:addLabel({
-    x = 2,
-    y = ratePanelRow,
+ratePanelNet:addLabel({
+    width = ratePanelMaxPropertyWidth,
     text = "Net:",
     foreground = C.net,
 })
 
-ratePanel:addLabel({
-    x = 15,
-    y = ratePanelRow,
-    width = basalt.fill(),
+ratePanelNet:addLabel({
+    width = DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return netRateText()
     end),
-    --foreground = C.net,
     foreground = basalt.computed(function()
         return net:get() >= 0 and C.input or C.output
     end),
 })
-
-ratePanelRow = ratePanelRow + 1
-
---ratePanel:addLabel({
---    x = 2,
---    y = ratePanelRow,
---    text = "" .. HISTORY_LENGTH_SECONDS .. "s Avg Net:",
---    foreground = C.net,
---})
---
---ratePanel:addLabel({
---    x = 15,
---    y = ratePanelRow,
---    width = basalt.fill(),
---    text = basalt.computed(function()
---        return averageNetRateText()
---    end),
---    --foreground = C.net,
---    foreground = basalt.computed(function()
---        return averageNet:get() >= 0 and C.input or C.output
---    end),
---})
---
---ratePanelVerticalIndex = ratePanelVerticalIndex + 1
 
 ------------------------------------------------------------
 -- Monitor text scale selector
@@ -904,7 +900,7 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = 16,
+    width = 2 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return "IN " .. averageInputRateText()
     end),
@@ -912,7 +908,7 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = 16,
+    width = 3 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return "OUT " .. averageOutputRateText()
     end),
@@ -920,7 +916,7 @@ graphFooter:addLabel({
 })
 
 local graphFooterNet = graphFooter:addRow({
-    width = 17,
+    width = 3 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     height = 1,
     gap = 1,
 })
@@ -932,7 +928,7 @@ graphFooterNet:addLabel({
 })
 
 graphFooterNet:addLabel({
-    width = 13,
+    width = DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return averageNetRateText()
     end),
