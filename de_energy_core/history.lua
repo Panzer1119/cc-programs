@@ -1,5 +1,5 @@
 -- de_energy_core/history.lua
--- Manages the rolling input/output sample arrays and their file persistence.
+-- Manages the rolling sample array and file persistence.
 --
 -- IMPORTANT: this module is intentionally unaware of Basalt / PixelGraph.
 -- All graph rendering is handled by the caller (de_energy_core_monitor.lua).
@@ -8,20 +8,20 @@
 --   local history = require("history")
 --   history.init(historyLength, historyLengthSeconds) -- pass basalt signals
 --   history.load()
---   history.save() -- flush initial state to disk
+--   history.save() -- flush sanitized state back to disk on startup
 --
--- After init, use history.input and history.output for the live arrays.
--- Always access them through the module table (history.input), never cache
--- them in a local variable, because clear() replaces the table references.
+-- After init, use history.samples for the live array.
+-- Always access it through the module table (history.samples), never cache
+-- it in a local variable, because clear() replaces the table reference.
 
 local const = require("constants")
 local utils = require("utils")
 
 local M = {}
 
--- Public sample arrays. Each entry: { timestamp = int, value = number }.
-M.input = {}
-M.output = {}
+-- Public sample array. Each entry:
+--   { timestamp = int, energy = number, maxEnergy = number, input = number, output = number }
+M.samples = {}
 
 -- Basalt signal references set by M.init(). Required before any other call.
 local _historyLength
@@ -45,18 +45,6 @@ end
 -- Private helpers
 ------------------------------------------------------------
 
-local function normalizePair(inp, out)
--- Trim the longer array from the front so both stay the same length.
-    local len = math.min(#inp, #out)
-    while #inp > len do
-        table.remove(inp, 1)
-    end
-    while #out > len do
-        table.remove(out, 1)
-    end
-    return inp, out
-end
-
 local function sanitizeEntries(entries, nowTs)
 -- Validate, filter to the current time window, sort, and cap length.
     local result = {}
@@ -69,17 +57,18 @@ local function sanitizeEntries(entries, nowTs)
 
     for _, e in ipairs(entries) do
         local t = type(e) == "table" and tonumber(e.timestamp) or nil
-        local v = type(e) == "table" and tonumber(e.value) or nil
-        if t and v and t >= cutoff and t <= nowTs then
-            result[#result + 1] = { timestamp = math.floor(t), value = v }
+        if t and t >= cutoff and t <= nowTs then
+            result[#result + 1] = {
+                timestamp = math.floor(t),
+                energy = tonumber(e.energy) or 0,
+                maxEnergy = tonumber(e.maxEnergy) or 0,
+                input = tonumber(e.input) or 0,
+                output = tonumber(e.output) or 0,
+            }
         end
     end
 
-    table.sort(result, function(a, b)
-        if a.timestamp == b.timestamp then
-            return a.value < b.value
-        end
-        return a.timestamp < b.timestamp
+    table.sort(result, function(a, b) return a.timestamp < b.timestamp
     end)
 
     while #result > maxLen do
@@ -92,9 +81,10 @@ end
 -- Persistence
 ------------------------------------------------------------
 
--- Load M.input / M.output from disk, replacing whatever is currently held.
--- Accepts both the current file format ({ input, output }) and the legacy
--- format ({ inputHistory, outputHistory }) for backward compatibility.
+-- Load M.samples from disk, replacing whatever is currently held.
+-- Accepts both the current file format ({ samples }) and the legacy
+-- format ({ input/inputHistory, output/outputHistory }) for backward
+-- compatibility (energy/maxEnergy will default to 0 in that case).
 function M.load()
     local handle = fs.open(const.HISTORY_PATH, "r")
     if not handle then
@@ -115,13 +105,34 @@ function M.load()
     end
 
     local now = utils.getUnixTimestamp()
-    M.input, M.output = normalizePair(
-        sanitizeEntries(data.input or data.inputHistory, now),
-        sanitizeEntries(data.output or data.outputHistory, now)
-    )
+
+    if data.samples then
+    -- Current format.
+        M.samples = sanitizeEntries(data.samples, now)
+    elseif data.input or data.inputHistory then
+    -- Legacy two-array format: merge by index (energy/maxEnergy unknown).
+        local inp = data.input or data.inputHistory or {}
+        local out = data.output or data.outputHistory or {}
+        local len = math.min(#inp, #out)
+        local cutoff = now - _historyLengthSeconds:get()
+        local merged = {}
+        for i = 1, len do
+            local t = tonumber(inp[i].timestamp)
+            if t and t >= cutoff and t <= now then
+                merged[#merged + 1] = {
+                    timestamp = math.floor(t),
+                    energy = 0,
+                    maxEnergy = 0,
+                    input = tonumber(inp[i].value) or 0,
+                    output = tonumber(out[i].value) or 0,
+                }
+            end
+        end
+        M.samples = merged
+    end
 end
 
--- Persist M.input / M.output to disk unconditionally.
+-- Persist M.samples to disk unconditionally.
 -- Returns true on success, false on failure.
 function M.save()
     local handle = fs.open(const.HISTORY_PATH, "w")
@@ -129,13 +140,13 @@ function M.save()
         print('Failed to open "' .. const.HISTORY_PATH .. '" for writing.')
         return false
     end
-    handle.write(textutils.serialize({ input = M.input, output = M.output }))
+    handle.write(textutils.serialize({ samples = M.samples }))
     handle.close()
     _lastSaveTime = os.clock()
     return true
 end
 
--- Persist M.input / M.output to disk only when the configured throttle interval
+-- Persist M.samples to disk only when the configured throttle interval
 -- has elapsed since the last write. Returns true if a write was performed,
 -- false if the call was skipped or the write failed.
 function M.maybeSave()
@@ -149,91 +160,84 @@ end
 -- Mutation
 ------------------------------------------------------------
 
--- Append one paired sample (iVal = input RF/t, oVal = output RF/t) and
--- trim both arrays to the current history-length window.
-function M.push(timestamp, iVal, oVal)
+-- Append one sample and trim to the current history-length window.
+function M.push(timestamp, energy, maxEnergy, iVal, oVal)
     local cutoff = timestamp - _historyLengthSeconds:get()
     local maxLen = _historyLength:get()
 
-    local function pushOne(h, v)
-        h[#h + 1] = { timestamp = timestamp, value = v }
-        while #h > maxLen do
-            table.remove(h, 1)
-        end
-        while #h > 0 and h[1].timestamp < cutoff do
-            table.remove(h, 1)
-        end
+    M.samples[#M.samples + 1] = {
+        timestamp = timestamp,
+        energy = energy,
+        maxEnergy = maxEnergy,
+        input = iVal,
+        output = oVal,
+    }
+    while #M.samples > maxLen do
+        table.remove(M.samples, 1)
     end
-
-    pushOne(M.input, iVal)
-    pushOne(M.output, oVal)
+    while #M.samples > 0 and M.samples[1].timestamp < cutoff do
+        table.remove(M.samples, 1)
+    end
 end
 
--- Drop all entries outside the current settings window and re-align both
--- arrays. Persists the result to disk.
+-- Drop all entries outside the current settings window and persist.
 -- The caller should redraw the graph after this call.
 function M.trim()
     local maxLen = _historyLength:get()
     local cutoff = utils.getUnixTimestamp() - _historyLengthSeconds:get()
 
-    while #M.input > maxLen do
-        table.remove(M.input, 1)
+    while #M.samples > maxLen do
+        table.remove(M.samples, 1)
     end
-    while #M.output > maxLen do
-        table.remove(M.output, 1)
+    while #M.samples > 0 and M.samples[1].timestamp < cutoff do
+        table.remove(M.samples, 1)
     end
-    while #M.input > 0 and M.input[1].timestamp < cutoff do
-        table.remove(M.input, 1)
-    end
-    while #M.output > 0 and M.output[1].timestamp < cutoff do
-        table.remove(M.output, 1)
-    end
-
-    M.input, M.output = normalizePair(M.input, M.output)
     M.save()
 end
 
--- Replace both arrays with empty tables and persist.
+-- Replace the array with an empty table and persist.
 -- The caller should clear / redraw the graph after this call.
 function M.clear()
-    M.input = {}
-    M.output = {}
+    M.samples = {}
     M.save()
 end
 
 ------------------------------------------------------------
--- Statistics (pure read-only helpers over a single history array)
+-- Statistics (pure read-only helpers over M.samples)
+--
+-- `field` is the sample key to aggregate: "input", "output",
+-- "energy", or "maxEnergy".
 ------------------------------------------------------------
 
-function M.avg(h)
-    if #h == 0 then
+function M.avg(field)
+    if #M.samples == 0 then
         return 0
     end
     local total = 0
-    for _, e in ipairs(h) do
-        total = total + e.value
+    for _, s in ipairs(M.samples) do
+        total = total + (s[field] or 0)
     end
-    return total / #h
+    return total / #M.samples
 end
 
-function M.max(h)
-    if #h == 0 then
+function M.max(field)
+    if #M.samples == 0 then
         return 0
     end
     local m = 0
-    for _, e in ipairs(h) do
-        m = math.max(m, e.value)
+    for _, s in ipairs(M.samples) do
+        m = math.max(m, s[field] or 0)
     end
     return m
 end
 
-function M.min(h)
-    if #h == 0 then
+function M.min(field)
+    if #M.samples == 0 then
         return 0
     end
     local m = math.huge
-    for _, e in ipairs(h) do
-        m = math.min(m, e.value)
+    for _, s in ipairs(M.samples) do
+        m = math.min(m, s[field] or 0)
     end
     return m
 end

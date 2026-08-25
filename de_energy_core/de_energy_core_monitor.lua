@@ -746,7 +746,7 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
         end),
         text = basalt.computed(function()
             local max = historyLength:get()
-            return string.format("%" .. #tostring(max) .. "d/%d", #history.input, max)
+            return string.format("%" .. #tostring(max) .. "d/%d", #history.samples, max)
         end),
         foreground = C.muted,
     })
