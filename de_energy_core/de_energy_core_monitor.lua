@@ -668,7 +668,7 @@ local energyUnitButton = frame:addButton({
 
     y = 1,
     width = 13,
-    height = 2,
+    height = 1,
 
     text = energyUnit:map(function(value)
         return value .. "  >"
@@ -691,6 +691,40 @@ energyUnitButton:onClick(function()
 
         return ENERGY_UNITS[index % #ENERGY_UNITS + 1]
     end)
+    energyUnitFactor:set(ENERGY_UNIT_FACTORS[energyUnit:get()])
+end)
+
+local energyRateUnitButton = frame:addButton({
+    x = function(self)
+        return self.parent.width - 15
+    end,
+
+    y = 2,
+    width = 13,
+    height = 1,
+
+    text = energyRateUnit:map(function(value)
+        return value .. "  >"
+    end),
+
+    background = C.panel,
+    foreground = C.accent,
+})
+
+energyRateUnitButton:onClick(function()
+    energyRateUnit:update(function(current)
+        local index = 1
+
+        for i, value in ipairs(ENERGY_RATE_UNITS) do
+            if value == current then
+                index = i
+                break
+            end
+        end
+
+        return ENERGY_RATE_UNITS[index % #ENERGY_RATE_UNITS + 1]
+    end)
+    energyRateUnitFactor:set(ENERGY_RATE_UNIT_FACTORS[energyRateUnit:get()])
 end)
 
 ------------------------------------------------------------
