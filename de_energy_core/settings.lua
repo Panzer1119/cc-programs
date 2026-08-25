@@ -17,11 +17,13 @@ local function sanitize(s)
         monitorTextScale = const.MONITOR_TEXT_SCALES[utils.findIndex(const.MONITOR_TEXT_SCALES, s.monitorTextScale)],
         energyUnit = const.ENERGY_UNITS[utils.findIndex(const.ENERGY_UNITS, s.energyUnit)],
         rateUnit = const.RATE_UNITS[utils.findIndex(const.RATE_UNITS, s.rateUnit)],
-        sampleInterval = const.SAMPLE_INTERVAL_OPTIONS[utils.findIndex(const.SAMPLE_INTERVAL_OPTIONS, s.sampleInterval)],
-        graphRefreshInterval = const.GRAPH_REFRESH_INTERVAL_OPTIONS[
-            utils.findIndex(const.GRAPH_REFRESH_INTERVAL_OPTIONS, s.graphRefreshInterval)
+        sampleIntervalSeconds = const.SAMPLE_INTERVAL_SECONDS_OPTIONS[utils.findIndex(const.SAMPLE_INTERVAL_SECONDS_OPTIONS, s.sampleIntervalSeconds)],
+        historyCapacity = const.HISTORY_CAPACITY_OPTIONS[utils.findIndex(const.HISTORY_CAPACITY_OPTIONS, s.historyCapacity)],
+        historyCutoffThresholdSeconds = const.HISTORY_CUTOFF_THRESHOLD_SECONDS_OPTIONS[utils.findIndex(const.HISTORY_CUTOFF_THRESHOLD_SECONDS_OPTIONS, s.historyCutoffThresholdSeconds)],
+        graphRefreshIntervalSeconds = const.GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS[
+        utils.findIndex(const.GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS, s.graphRefreshIntervalSeconds)
         ],
-        historyLength = const.HISTORY_LENGTH_OPTIONS[utils.findIndex(const.HISTORY_LENGTH_OPTIONS, s.historyLength)],
+        graphWindowSeconds = const.GRAPH_WINDOW_SECONDS_OPTIONS[utils.findIndex(const.GRAPH_WINDOW_SECONDS_OPTIONS, s.graphWindowSeconds)],
         showInputGraph = s.showInputGraph == nil and d.showInputGraph or not not s.showInputGraph,
         showOutputGraph = s.showOutputGraph == nil and d.showOutputGraph or not not s.showOutputGraph,
     }

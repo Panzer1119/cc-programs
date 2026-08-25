@@ -41,11 +41,13 @@ local connected = basalt.signal(false)
 local monitorTextScaleIndex = basalt.signal(utils.findIndex(const.MONITOR_TEXT_SCALES, savedSettings.monitorTextScale))
 local energyUnitIndex = basalt.signal(utils.findIndex(const.ENERGY_UNITS, savedSettings.energyUnit))
 local rateUnitIndex = basalt.signal(utils.findIndex(const.RATE_UNITS, savedSettings.rateUnit))
-local sampleIntervalIndex = basalt.signal(utils.findIndex(const.SAMPLE_INTERVAL_OPTIONS, savedSettings.sampleInterval))
-local graphRefreshIntervalIndex = basalt.signal(
-    utils.findIndex(const.GRAPH_REFRESH_INTERVAL_OPTIONS, savedSettings.graphRefreshInterval)
+local sampleIntervalSecondsIndex = basalt.signal(utils.findIndex(const.SAMPLE_INTERVAL_SECONDS_OPTIONS, savedSettings.sampleIntervalSeconds))
+local historyCapacityIndex = basalt.signal(utils.findIndex(const.HISTORY_CAPACITY_OPTIONS, savedSettings.historyCapacity))
+local historyCutoffThresholdSecondsIndex = basalt.signal(utils.findIndex(const.HISTORY_CUTOFF_THRESHOLD_SECONDS_OPTIONS, savedSettings.historyCutoffThresholdSeconds))
+local graphRefreshIntervalSecondsIndex = basalt.signal(
+    utils.findIndex(const.GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS, savedSettings.graphRefreshIntervalSeconds)
 )
-local historyLengthIndex = basalt.signal(utils.findIndex(const.HISTORY_LENGTH_OPTIONS, savedSettings.historyLength))
+local graphWindowSecondsIndex = basalt.signal(utils.findIndex(const.GRAPH_WINDOW_SECONDS_OPTIONS, savedSettings.graphWindowSeconds))
 local showInputGraph = basalt.signal(savedSettings.showInputGraph)
 local showOutputGraph = basalt.signal(savedSettings.showOutputGraph)
 
@@ -61,23 +63,25 @@ end)
 local rateUnitFactor = basalt.computed(function() return const.RATE_UNIT_FACTORS[rateUnit:get()]
 end)
 
-local sampleIntervalSeconds = basalt.computed(function() return const.SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]
+local sampleIntervalSeconds = basalt.computed(function() return const.SAMPLE_INTERVAL_SECONDS_OPTIONS[sampleIntervalSecondsIndex:get()]
+end)
+local historyCapacity = basalt.computed(function() return const.HISTORY_CAPACITY_OPTIONS[historyCapacityIndex:get()]
+end)
+local historyCutoffThresholdSeconds = basalt.computed(function() return const.HISTORY_CUTOFF_THRESHOLD_SECONDS_OPTIONS[historyCutoffThresholdSecondsIndex:get()]
 end)
 local graphRefreshIntervalSeconds = basalt.computed(function()
-    return const.GRAPH_REFRESH_INTERVAL_OPTIONS[graphRefreshIntervalIndex:get()]
+    return const.GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS[graphRefreshIntervalSecondsIndex:get()]
 end)
-local historyLengthSeconds = basalt.computed(function() return const.HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]
+local graphWindowSeconds = basalt.computed(function() return const.GRAPH_WINDOW_SECONDS_OPTIONS[graphWindowSecondsIndex:get()]
 end)
-local historyLength = basalt.computed(function()
-    return math.ceil(historyLengthSeconds:get() / sampleIntervalSeconds:get())
-end)
-local historyCapacity = basalt.computed(function()
-    return math.min(historyLength:get(), const.MAX_HISTORY_ELEMENTS)
+local graphPointCount = basalt.computed(function()
+    return math.ceil(graphWindowSeconds:get() / graphRefreshIntervalSeconds:get())
 end)
 
 -- Derived from sensor readings.
 local tier = basalt.computed(function()
     local max = maxEnergy:get()
+    --TODO Improve this check
     if max > 2140000000000 then
         return 8
     end
@@ -111,9 +115,11 @@ local function persistSettings()
         monitorTextScale = monitorTextScale:get(),
         energyUnit = energyUnit:get(),
         rateUnit = rateUnit:get(),
-        sampleInterval = sampleIntervalSeconds:get(),
-        graphRefreshInterval = graphRefreshIntervalSeconds:get(),
-        historyLength = historyLengthSeconds:get(),
+        sampleIntervalSeconds = sampleIntervalSeconds:get(),
+        historyCapacity = historyCapacity:get(),
+        historyCutoffThresholdSeconds = historyCutoffThresholdSeconds:get(),
+        graphRefreshIntervalSeconds = graphRefreshIntervalSeconds:get(),
+        graphWindowSeconds = graphWindowSeconds:get(),
         showInputGraph = showInputGraph:get(),
         showOutputGraph = showOutputGraph:get(),
     })
@@ -125,7 +131,7 @@ end
 
 -- Inject the window-size signals so history.lua can enforce limits
 -- without knowing about Basalt.
-history.init(historyLength, historyLengthSeconds)
+history.init(historyCapacity, historyCutoffThresholdSeconds)
 history.load()
 history.save() -- flush sanitized state back to disk on startup
 
@@ -276,8 +282,8 @@ local function setupGraphSeries()
     if not graph then
         return
     end
-    graph:addSeries("input", { color = C.input, pointCount = historyCapacity:get(), visible = showInputGraph:get() })
-    graph:addSeries("output", { color = C.output, pointCount = historyCapacity:get(), visible = showOutputGraph:get() })
+    graph:addSeries("input", { color = C.input, pointCount = graphPointCount:get(), visible = showInputGraph:get() })
+    graph:addSeries("output", { color = C.output, pointCount = graphPointCount:get(), visible = showOutputGraph:get() })
 end
 
 local function clearGraphSeries()
@@ -444,36 +450,36 @@ headerEndData:addLabel({
 -- Layout right → left: [rate unit] [energy unit] [scale] [history] [sample] [refresh]
 -- Each `x` expression subtracts the total width of all dropdowns to its right.
 
-local graphRefreshIntervalDropdown = mainPage:addDropdown({
+local graphRefreshIntervalSecondsDropdown = mainPage:addDropdown({
     position = "absolute",
     x = "{parent.width - (5+3 + 1 + 5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 5 + 3,
-    text = const.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS[graphRefreshIntervalIndex:get()],
-    dropHeight = #const.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS,
-    items = const.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS,
+    text = const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS[graphRefreshIntervalSecondsIndex:get()],
+    dropHeight = #const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS,
+    items = const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS,
     background = C.muted,
 })
 
-local sampleIntervalDropdown = mainPage:addDropdown({
+local sampleIntervalSecondsDropdown = mainPage:addDropdown({
     position = "absolute",
     x = "{parent.width - (5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 5 + 3,
-    text = const.FORMATTED_SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()],
-    dropHeight = #const.FORMATTED_SAMPLE_INTERVAL_OPTIONS,
-    items = const.FORMATTED_SAMPLE_INTERVAL_OPTIONS,
+    text = const.FORMATTED_SAMPLE_INTERVAL_SECONDS_OPTIONS[sampleIntervalSecondsIndex:get()],
+    dropHeight = #const.FORMATTED_SAMPLE_INTERVAL_SECONDS_OPTIONS,
+    items = const.FORMATTED_SAMPLE_INTERVAL_SECONDS_OPTIONS,
     background = C.muted,
 })
 
-local historyLengthDropdown = mainPage:addDropdown({
+local graphWindowSecondsDropdown = mainPage:addDropdown({
     position = "absolute",
     x = "{parent.width - (5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 5 + 2,
-    text = const.FORMATTED_HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()],
-    dropHeight = #const.FORMATTED_HISTORY_LENGTH_OPTIONS,
-    items = const.FORMATTED_HISTORY_LENGTH_OPTIONS,
+    text = const.FORMATTED_GRAPH_WINDOW_SECONDS_OPTIONS[graphWindowSecondsIndex:get()],
+    dropHeight = #const.FORMATTED_GRAPH_WINDOW_SECONDS_OPTIONS,
+    items = const.FORMATTED_GRAPH_WINDOW_SECONDS_OPTIONS,
     background = C.muted,
 })
 
@@ -511,18 +517,18 @@ local rateUnitDropdown = mainPage:addDropdown({
 })
 
 -- Wire dropdowns to signals and persist on every change.
-graphRefreshIntervalDropdown:bind("selected", graphRefreshIntervalIndex)
-graphRefreshIntervalDropdown:onSelect(function() persistSettings()
+graphRefreshIntervalSecondsDropdown:bind("selected", graphRefreshIntervalSecondsIndex)
+graphRefreshIntervalSecondsDropdown:onSelect(function() persistSettings()
 end)
 
-sampleIntervalDropdown:bind("selected", sampleIntervalIndex)
-sampleIntervalDropdown:onSelect(function()
+sampleIntervalSecondsDropdown:bind("selected", sampleIntervalSecondsIndex)
+sampleIntervalSecondsDropdown:onSelect(function()
     trimHistoryToCurrentSettings()
     persistSettings()
 end)
 
-historyLengthDropdown:bind("selected", historyLengthIndex)
-historyLengthDropdown:onSelect(function()
+graphWindowSecondsDropdown:bind("selected", graphWindowSecondsIndex)
+graphWindowSecondsDropdown:onSelect(function()
     trimHistoryToCurrentSettings()
     persistSettings()
 end)
@@ -662,7 +668,7 @@ local graphHeader = graphPanel:addRow({ width = basalt.fill(), height = 1, gap =
 graphHeader:addLabel({
     width = basalt.auto(),
     text = basalt.computed(function()
-        return "RATE HISTORY - " .. historyLengthSeconds:get() .. " SECONDS"
+        return "RATE HISTORY - " .. graphWindowSeconds:get() .. " SECONDS"
     end),
     foreground = C.accent,
 })
@@ -746,10 +752,10 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
 
     -- Sample count "NNN/MMM".
     row:addLabel({
-        width = basalt.computed(function() return 2 * #tostring(historyCapacity:get()) + 1
+        width = basalt.computed(function() return 2 * #tostring(graphPointCount:get()) + 1
         end),
         text = basalt.computed(function()
-            local max = historyCapacity:get()
+            local max = graphPointCount:get()
             return string.format("%" .. #tostring(max) .. "d/%d", #history.samples, max)
         end),
         foreground = C.muted,
@@ -757,7 +763,7 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
 end
 
 addFooterStatRow(graphFooter,
-    function() return historyLengthSeconds:get() .. "S AVG"
+    function() return graphWindowSeconds:get() .. "S AVG"
     end,
     function() return withRateUnit(averageInput:get(), false, true)
     end,
@@ -770,7 +776,7 @@ addFooterStatRow(graphFooter,
 )
 
 addFooterStatRow(graphFooter,
-    function() return historyLengthSeconds:get() .. "S MAX"
+    function() return graphWindowSeconds:get() .. "S MAX"
     end,
     function() return withRateUnit(maximumInput:get(), false, true)
     end,
@@ -783,7 +789,7 @@ addFooterStatRow(graphFooter,
 )
 
 addFooterStatRow(graphFooter,
-    function() return historyLengthSeconds:get() .. "S MIN"
+    function() return graphWindowSeconds:get() .. "S MIN"
     end,
     function() return withRateUnit(minimumInput:get(), false, true)
     end,

@@ -6,7 +6,7 @@
 --
 -- Usage:
 --   local history = require("history")
---   history.init(historyLength, historyLengthSeconds) -- pass basalt signals
+--   history.init(historyCutoffThresholdSeconds, historyCutoffThresholdSecondsSeconds) -- pass basalt signals
 --   history.load()
 --   history.save() -- flush sanitized state back to disk on startup
 --
@@ -49,7 +49,7 @@ local function sanitizeEntries(entries, nowTs)
 -- Validate, filter to the current time window, sort, and cap length.
     local result = {}
     --local cutoff = nowTs - _cutoffThresholdSeconds:get()
-    local maxLen = math.min(_capacity:get(), const.MAX_HISTORY_ELEMENTS)
+    local maxLen = math.min(_capacity:get(), const.MAX_HISTORY_CAPACITY)
 
     if type(entries) ~= "table" then
         return result
@@ -152,7 +152,7 @@ end
 -- has elapsed since the last write. Returns true if a write was performed,
 -- false if the call was skipped or the write failed.
 function M.maybeSave()
-    if os.clock() - _lastSaveTime < const.HISTORY_SAVE_INTERVAL_SECONDS then
+    if os.clock() - _lastSaveTime < const.DEFAULT_HISTORY_SAVE_INTERVAL_SECONDS then
         return false
     end
     return M.save()
@@ -182,7 +182,7 @@ function M.append(sample)
 
     local timestamp = tonumber(sample.timestamp) or utils.getUnixTimestamp()
     --local cutoff = timestamp - _cutoffThresholdSeconds:get()
-    local maxLen = math.min(_capacity:get(), const.MAX_HISTORY_ELEMENTS)
+    local maxLen = math.min(_capacity:get(), const.MAX_HISTORY_CAPACITY)
     local input = tonumber(sample.input) or 0
     local output = tonumber(sample.output) or 0
 
@@ -206,7 +206,7 @@ end
 -- Drop all entries outside the current settings window and persist.
 -- The caller should redraw the graph after this call.
 function M.trim()
-    local maxLen = math.min(_capacity:get(), const.MAX_HISTORY_ELEMENTS)
+    local maxLen = math.min(_capacity:get(), const.MAX_HISTORY_CAPACITY)
     --local cutoff = utils.getUnixTimestamp() - _cutoffThresholdSeconds:get()
 
     while #M.samples > maxLen do
