@@ -614,7 +614,9 @@ local ratePanel = frame:addFrame({
     end,
 
     --TODO Use flex layout for this?
-    height = isInfinite:get() and 5 or 7,
+    height = basalt.computed(function()
+        return isInfinite:get() and 5 or 5 + 2
+    end),
     background = C.panel,
 })
 
