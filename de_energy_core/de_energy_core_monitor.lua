@@ -439,6 +439,21 @@ headerEndData:addLabel({
 })
 
 headerEndData:addLabel({
+    width = 7,
+    text = basalt.computed(function()
+        return string.format("%4.0f ms", graphRefreshDelayMs:get())
+    end),
+    foreground = basalt.computed(function()
+        local pct = graphRefreshDelayMs:get() / (graphRefreshIntervalSeconds:get() * 1000)
+        if pct < 0.5 then
+            return C.good elseif pct < 1.0 then
+            return C.warning
+        end
+        return C.danger
+    end),
+})
+
+headerEndData:addLabel({
     width = W_DATETIME,
     text = basalt.computed(function() return os.date("%Y-%m-%d %H:%M:%S")
     end),
@@ -450,25 +465,25 @@ headerEndData:addLabel({
 -- Layout right → left: [rate unit] [energy unit] [scale] [history] [sample] [refresh]
 -- Each `x` expression subtracts the total width of all dropdowns to its right.
 
-local graphRefreshIntervalSecondsDropdown = mainPage:addDropdown({
-    position = "absolute",
-    x = "{parent.width - (5+3 + 1 + 5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
-    y = "{parent.y + 1}",
-    width = 5 + 3,
-    text = const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS[graphRefreshIntervalSecondsIndex:get()],
-    dropHeight = #const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS,
-    items = const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS,
-    background = C.muted,
-})
-
 local sampleIntervalSecondsDropdown = mainPage:addDropdown({
     position = "absolute",
-    x = "{parent.width - (5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
+    x = "{parent.width - (5+3 + 1 + 5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 5 + 3,
     text = const.FORMATTED_SAMPLE_INTERVAL_SECONDS_OPTIONS[sampleIntervalSecondsIndex:get()],
     dropHeight = #const.FORMATTED_SAMPLE_INTERVAL_SECONDS_OPTIONS,
     items = const.FORMATTED_SAMPLE_INTERVAL_SECONDS_OPTIONS,
+    background = C.muted,
+})
+
+local graphRefreshIntervalSecondsDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - (5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
+    y = "{parent.y + 1}",
+    width = 5 + 3,
+    text = const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS[graphRefreshIntervalSecondsIndex:get()],
+    dropHeight = #const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS,
+    items = const.FORMATTED_GRAPH_REFRESH_INTERVAL_SECONDS_OPTIONS,
     background = C.muted,
 })
 
@@ -523,7 +538,7 @@ end)
 
 sampleIntervalSecondsDropdown:bind("selected", sampleIntervalSecondsIndex)
 sampleIntervalSecondsDropdown:onSelect(function()
-    trimHistoryToCurrentSettings()
+    --trimHistoryToCurrentSettings()
     persistSettings()
 end)
 
@@ -756,7 +771,7 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
         end),
         text = basalt.computed(function()
             local max = graphPointCount:get()
-            return string.format("%" .. #tostring(max) .. "d/%d", #history.samples, max)
+            return string.format("%" .. #tostring(max) .. "d/%d", #graph:getSeries("input").points, max)
         end),
         foreground = C.muted,
     })
