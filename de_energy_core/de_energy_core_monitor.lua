@@ -59,6 +59,13 @@ local TIER_CAPACITY = {
 
 local SETTINGS_FILE_NAME = "de_energy_core_monitor.settings"
 local SETTINGS_PATH = "/" .. SETTINGS_FILE_NAME
+local HISTORY_FILE_NAME = "de_energy_core_monitor.history"
+local HISTORY_PATH = "/" .. HISTORY_FILE_NAME
+
+local function getUnixTimestamp()
+    return os.time(os.date("*t"))
+end
+
 ------------------------------------------------------------
 -- Colors
 ------------------------------------------------------------
@@ -139,6 +146,7 @@ end
 
 local userSettings = loadUserSettings()
 
+-- These four signals remain the primary live state.
 local energy = basalt.signal(0)
 local maxEnergy = basalt.signal(0)
 local input = basalt.signal(0)
@@ -205,10 +213,113 @@ local function persistUserSettings()
     end
 end
 
--- Rolling samples. These are internal application data;
--- the four signals above remain the primary live state.
-local inputHistory = {}
-local outputHistory = {}
+local function sanitizeHistoryEntries(entries, nowTimestamp)
+    local sanitizedEntries = {}
+    local cutoffTimestamp = nowTimestamp - HISTORY_LENGTH_SECONDS
+
+    if type(entries) ~= "table" then
+        return sanitizedEntries
+    end
+
+    for _, entry in ipairs(entries) do
+        local timestamp = type(entry) == "table" and tonumber(entry.timestamp) or nil
+        local value = type(entry) == "table" and tonumber(entry.value) or nil
+
+        if timestamp and value and timestamp >= cutoffTimestamp and timestamp <= nowTimestamp then
+            sanitizedEntries[#sanitizedEntries + 1] = {
+                timestamp = math.floor(timestamp),
+                value = value,
+            }
+        end
+    end
+
+    table.sort(sanitizedEntries, function(a, b)
+        if a.timestamp == b.timestamp then
+            return a.value < b.value
+        end
+
+        return a.timestamp < b.timestamp
+    end)
+
+    while #sanitizedEntries > HISTORY_LENGTH do
+        table.remove(sanitizedEntries, 1)
+    end
+
+    return sanitizedEntries
+end
+
+local function normalizeHistoryPair(newInputHistory, newOutputHistory)
+    local normalizedLength = math.min(#newInputHistory, #newOutputHistory)
+
+    while #newInputHistory > normalizedLength do
+        table.remove(newInputHistory, 1)
+    end
+
+    while #newOutputHistory > normalizedLength do
+        table.remove(newOutputHistory, 1)
+    end
+
+    return newInputHistory, newOutputHistory
+end
+
+local function loadHistory()
+    local handle = fs.open(HISTORY_PATH, "r")
+
+    if not handle then
+        return {}, {}
+    end
+
+    local content = handle.readAll()
+    handle.close()
+
+    if not content or content == "" then
+        return {}, {}
+    end
+
+    local ok, data = pcall(textutils.unserialize, content)
+
+    if not ok or type(data) ~= "table" then
+        print("Failed to load history from \"" .. HISTORY_PATH .. "\".")
+        return {}, {}
+    end
+
+    local nowTimestamp = getUnixTimestamp()
+
+    return normalizeHistoryPair(
+        sanitizeHistoryEntries(data.inputHistory, nowTimestamp),
+        sanitizeHistoryEntries(data.outputHistory, nowTimestamp)
+    )
+end
+
+-- Rolling samples
+local inputHistory, outputHistory = loadHistory()
+
+local function saveHistory()
+    local handle = fs.open(HISTORY_PATH, "w")
+
+    if not handle then
+        return false, "Unable to open history file for writing"
+    end
+
+    handle.write(textutils.serialize({
+        inputHistory = inputHistory,
+        outputHistory = outputHistory,
+    }))
+    handle.close()
+
+    return true
+end
+
+local function persistHistory()
+    local ok, err = saveHistory()
+
+    if not ok then
+        print("Failed to save history: " .. tostring(err))
+    end
+end
+
+persistHistory()
+
 local graph
 
 local lastSample = 0
@@ -258,8 +369,8 @@ local averageInput = basalt.computed(function()
 
     local total = 0
 
-    for _, value in ipairs(inputHistory) do
-        total = total + value
+    for _, entry in ipairs(inputHistory) do
+        total = total + entry.value
     end
 
     return total / #inputHistory
@@ -272,15 +383,27 @@ local averageOutput = basalt.computed(function()
 
     local total = 0
 
-    for _, value in ipairs(outputHistory) do
-        total = total + value
+    for _, entry in ipairs(outputHistory) do
+        total = total + entry.value
     end
 
     return total / #outputHistory
 end)
 
 local averageNet = basalt.computed(function()
-    return averageInput:get() - averageOutput:get()
+    if #inputHistory == 0 then
+        return 0
+    end
+
+    local total = 0
+
+    for i, inputEntry in ipairs(inputHistory) do
+        local outputEntry = outputHistory[i]
+        local value = inputEntry.value - outputEntry.value
+        total = total + value
+    end
+
+    return total / #inputHistory
 end)
 
 local maximumInput = basalt.computed(function()
@@ -290,8 +413,8 @@ local maximumInput = basalt.computed(function()
 
     local maximum = 0
 
-    for _, value in ipairs(inputHistory) do
-        maximum = math.max(maximum, value)
+    for _, entry in ipairs(inputHistory) do
+        maximum = math.max(maximum, entry.value)
     end
 
     return maximum
@@ -304,8 +427,8 @@ local maximumOutput = basalt.computed(function()
 
     local maximum = 0
 
-    for _, value in ipairs(outputHistory) do
-        maximum = math.max(maximum, value)
+    for _, entry in ipairs(outputHistory) do
+        maximum = math.max(maximum, entry.value)
     end
 
     return maximum
@@ -318,8 +441,9 @@ local maximumNet = basalt.computed(function()
 
     local maximum = 0
 
-    for i, value in ipairs(inputHistory) do
-        value = value - outputHistory[i]
+    for i, inputEntry in ipairs(inputHistory) do
+        local outputEntry = outputHistory[i]
+        local value = inputEntry.value - outputEntry.value
         maximum = math.max(maximum, value)
     end
 
@@ -333,8 +457,8 @@ local minimumInput = basalt.computed(function()
 
     local minimum = math.huge
 
-    for _, value in ipairs(inputHistory) do
-        minimum = math.min(minimum, value)
+    for _, entry in ipairs(inputHistory) do
+        minimum = math.min(minimum, entry.value)
     end
 
     return minimum
@@ -347,8 +471,8 @@ local minimumOutput = basalt.computed(function()
 
     local minimum = math.huge
 
-    for _, value in ipairs(outputHistory) do
-        minimum = math.min(minimum, value)
+    for _, entry in ipairs(outputHistory) do
+        minimum = math.min(minimum, entry.value)
     end
 
     return minimum
@@ -361,8 +485,9 @@ local minimumNet = basalt.computed(function()
 
     local minimum = math.huge
 
-    for i, value in ipairs(inputHistory) do
-        value = value - outputHistory[i]
+    for i, inputEntry in ipairs(inputHistory) do
+        local outputEntry = outputHistory[i]
+        local value = inputEntry.value - outputEntry.value
         minimum = math.min(minimum, value)
     end
 
@@ -551,10 +676,19 @@ end
 -- Sampling
 ------------------------------------------------------------
 
-local function push(history, value)
-    history[#history + 1] = value
+local function push(history, timestamp, value)
+    history[#history + 1] = {
+        timestamp = timestamp,
+        value = value,
+    }
 
-    if #history > HISTORY_LENGTH then
+    while #history > HISTORY_LENGTH do
+        table.remove(history, 1)
+    end
+
+    local cutoffTimestamp = timestamp - HISTORY_LENGTH_SECONDS
+
+    while #history > 0 and history[1].timestamp < cutoffTimestamp do
         table.remove(history, 1)
     end
 end
@@ -568,16 +702,16 @@ local function updateGraphBounds()
     local minimum = math.huge
 
     if showInputGraph:get() then
-        for _, value in ipairs(inputHistory) do
-            maximum = math.max(maximum, value)
-            minimum = math.min(minimum, value)
+        for _, entry in ipairs(inputHistory) do
+            maximum = math.max(maximum, entry.value)
+            minimum = math.min(minimum, entry.value)
         end
     end
 
     if showOutputGraph:get() then
-        for _, value in ipairs(outputHistory) do
-            maximum = math.max(maximum, value)
-            minimum = math.min(minimum, value)
+        for _, entry in ipairs(outputHistory) do
+            maximum = math.max(maximum, entry.value)
+            minimum = math.min(minimum, entry.value)
         end
     end
 
@@ -599,11 +733,30 @@ local function clearGraphDisplay()
     graph.minValue = 0
 end
 
+local function fillGraphFromHistory()
+    if not graph then
+        return
+    end
+
+    clearGraphDisplay()
+
+    for _, entry in ipairs(inputHistory) do
+        graph:addPoint("input", entry.value)
+    end
+
+    for _, entry in ipairs(outputHistory) do
+        graph:addPoint("output", entry.value)
+    end
+
+    updateGraphBounds()
+end
+
 local function clearHistory()
     inputHistory = {}
     outputHistory = {}
 
     clearGraphDisplay()
+    persistHistory()
 end
 
 local function sample()
@@ -637,8 +790,10 @@ local function sample()
     input:set(newInput)
     output:set(newOutput)
 
-    push(inputHistory, newInput)
-    push(outputHistory, newOutput)
+    local sampleTimestamp = getUnixTimestamp()
+
+    push(inputHistory, sampleTimestamp, newInput)
+    push(outputHistory, sampleTimestamp, newOutput)
 
     connected:set(true)
 
@@ -647,6 +802,7 @@ local function sample()
     graph:addPoint("output", newOutput)
 
     updateGraphBounds()
+    persistHistory()
 end
 
 ------------------------------------------------------------
@@ -1170,6 +1326,8 @@ graph:addSeries("output", {
     pointCount = HISTORY_LENGTH,
     visible = showOutputGraph:get(),
 })
+
+fillGraphFromHistory()
 
 toggleVisibilityInputGraph:onClick(function()
     showInputGraph:set(not showInputGraph:get())
