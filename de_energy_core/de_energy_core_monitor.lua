@@ -107,6 +107,9 @@ local rateUnitFactor = basalt.computed(function()
     return RATE_UNIT_FACTORS[rateUnit:get()]
 end)
 
+local showInputGraph = basalt.signal(true)
+local showOutputGraph = basalt.signal(true)
+
 -- Rolling samples. These are internal application data;
 -- the four signals above remain the primary live state.
 local inputHistory = {}
@@ -390,14 +393,18 @@ local function sample()
     local maximum = 1
     local minimum = 2140000000000
 
-    for _, value in ipairs(inputHistory) do
-        maximum = math.max(maximum, value)
-        minimum = math.min(minimum, value)
+    if showInputGraph:get() then
+        for _, value in ipairs(inputHistory) do
+            maximum = math.max(maximum, value)
+            minimum = math.min(minimum, value)
+        end
     end
 
-    for _, value in ipairs(outputHistory) do
-        maximum = math.max(maximum, value)
-        minimum = math.min(minimum, value)
+    if showOutputGraph:get() then
+        for _, value in ipairs(outputHistory) do
+            maximum = math.max(maximum, value)
+            minimum = math.min(minimum, value)
+        end
     end
 
     --graph.maxValue = maximum * 1.1
@@ -935,20 +942,40 @@ graphPanel:addLabel({
     foreground = C.accent,
 })
 
-graphPanel:addLabel({
+--graphPanel:addLabel({
+--    x = "{parent.width - 28}",
+--    y = 1,
+--    text = "- INPUT",
+--    foreground = C.input,
+--})
+--
+--graphPanel:addLabel({
+--    x = "{parent.width - 28 + 11}",
+--    y = 1,
+--    text = "- OUTPUT",
+--    foreground = C.output,
+--})
+
+local toggleVisibilityInputGraph = graphPanel:addButton({
     x = "{parent.width - 28}",
     y = 1,
-    --width = basalt.fill(),
+    height = 1,
     text = "- INPUT",
-    foreground = C.input,
+    foreground = basalt.computed(function()
+        return showInputGraph:get() and C.input or C.panel
+    end),
+    background = C.muted,
 })
 
-graphPanel:addLabel({
+local toggleVisibilityOutputGraph = graphPanel:addButton({
     x = "{parent.width - 28 + 11}",
     y = 1,
-    --width = basalt.fill(),
+    height = 1,
     text = "- OUTPUT",
-    foreground = C.output,
+    foreground = basalt.computed(function()
+        return showOutputGraph:get() and C.output or C.panel
+    end),
+    background = C.muted,
 })
 
 graph = graphPanel:addPixelGraph({
@@ -968,13 +995,31 @@ graph:addSeries("input", {
     color = C.input,
     pointCount = HISTORY_LENGTH,
     visible = true,
+    -- Does not work somehow
+    --visible = basalt.computed(function()
+    --    return showInputGraph:get()
+    --end),
 })
 
 graph:addSeries("output", {
     color = C.output,
     pointCount = HISTORY_LENGTH,
     visible = true,
+    -- Does not work somehow
+    --visible = basalt.computed(function()
+    --    return showOutputGraph:get()
+    --end),
 })
+
+toggleVisibilityInputGraph:onClick(function()
+    showInputGraph:set(not showInputGraph:get())
+    graph:setSeriesVisible("input", showInputGraph:get())
+end)
+
+toggleVisibilityOutputGraph:onClick(function()
+    showOutputGraph:set(not showOutputGraph:get())
+    graph:setSeriesVisible("output", showOutputGraph:get())
+end)
 
 ------------------------------------------------------------
 -- Footer
