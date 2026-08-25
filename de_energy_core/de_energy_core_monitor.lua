@@ -382,7 +382,7 @@ local function sample()
     graph:addPoint("input", newInput)
     graph:addPoint("output", newOutput)
 
-    -- Scale the graph to the current 60-second maximum.
+    -- Scale the graph to the current window's maximum.
     local maximum = 1
 
     for _, value in ipairs(inputHistory) do
@@ -393,7 +393,8 @@ local function sample()
         maximum = math.max(maximum, value)
     end
 
-    graph.maxValue = maximum * 1.1
+    --graph.maxValue = maximum * 1.1
+    graph.maxValue = maximum
 end
 
 ------------------------------------------------------------
@@ -634,7 +635,7 @@ ratePanelRow = ratePanelRow + 1
 --ratePanel:addLabel({
 --    x = 2,
 --    y = ratePanelRow,
---    text = "60s Avg In:",
+--    text = "" .. HISTORY_LENGTH_SECONDS .. "s Avg In:",
 --    foreground = C.input,
 --})
 --
@@ -653,7 +654,7 @@ ratePanelRow = ratePanelRow + 1
 --ratePanel:addLabel({
 --    x = 2,
 --    y = ratePanelRow,
---    text = "60s Avg Out:",
+--    text = "" .. HISTORY_LENGTH_SECONDS .. "s Avg Out:",
 --    foreground = C.output,
 --})
 --
@@ -694,7 +695,7 @@ ratePanelRow = ratePanelRow + 1
 --ratePanel:addLabel({
 --    x = 2,
 --    y = ratePanelRow,
---    text = "60s Avg Net:",
+--    text = "" .. HISTORY_LENGTH_SECONDS .. "s Avg Net:",
 --    foreground = C.net,
 --})
 --
@@ -883,7 +884,7 @@ graphPanel:addLabel({
     x = 2,
     y = 1,
     --width = basalt.fill(),
-    text = "RATE HISTORY - 60 SECONDS",
+    text = "RATE HISTORY - " .. HISTORY_LENGTH_SECONDS .. " SECONDS",
     foreground = C.accent,
 })
 
@@ -944,7 +945,7 @@ footer:addLabel({
     x = 2,
     y = 1,
     --width = basalt.fill(),
-    text = "60S AVG",
+    text = "" .. HISTORY_LENGTH_SECONDS .. "S AVG",
     foreground = C.accent,
 })
 
