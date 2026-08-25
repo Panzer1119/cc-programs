@@ -833,7 +833,7 @@ basalt.schedule(function()
             sleep(nextRun - now)
         end
 
-        local startedAt = os.clock()
+        local startedAt = os.epoch("utc")
         refreshPeripherals()
 
         if energyCore then
@@ -843,8 +843,7 @@ basalt.schedule(function()
             connected:set(false)
         end
 
-        local elapsed = os.clock() - startedAt
-        sampleIntervalDelayMs:set(math.floor(elapsed * 1000))
+        sampleIntervalDelayMs:set(os.epoch("utc") - startedAt)
 
         local interval = sampleIntervalSeconds:get()
         nextRun = nextRun + interval
@@ -866,14 +865,13 @@ basalt.schedule(function()
             sleep(nextRun - now)
         end
 
-        local startedAt = os.clock()
+        local startedAt = os.epoch("utc")
         local ok = pcall(refreshFromLatestSample)
         if not ok then
         -- Keep the monitor alive even if one refresh tick fails.
         end
 
-        local elapsed = os.clock() - startedAt
-        graphRefreshDelayMs:set(math.floor(elapsed * 1000))
+        graphRefreshDelayMs:set(os.epoch("utc") - startedAt)
 
         local interval = graphRefreshIntervalSeconds:get()
         nextRun = nextRun + interval
