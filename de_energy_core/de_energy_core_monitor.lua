@@ -253,7 +253,7 @@ local function findEnergyCore()
         end
     end
 
-    return nil, nil
+    return nil
 end
 
 local function findMonitor()
@@ -265,6 +265,7 @@ local function refreshPeripherals()
         monitor = findMonitor()
         if monitor then
             monitorName = peripheral.getName(monitor)
+            print("Using monitor: " .. monitorName)
         else
             monitorName = nil
         end
@@ -274,6 +275,9 @@ local function refreshPeripherals()
         energyCore = findEnergyCore()
         if energyCore then
             energyCoreName = peripheral.getName(energyCore)
+            if not monitor then
+                print("Using energy core: " .. energyCoreName)
+            end
         else
             energyCoreName = nil
         end
@@ -365,7 +369,7 @@ refreshPeripherals()
 
 local frame = basalt.createFrame(
     monitor,
-    "EnergyCore"
+    monitorName
 )
 
 frame.background = C.bg
