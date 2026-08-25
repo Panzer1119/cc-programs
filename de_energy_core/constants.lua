@@ -36,6 +36,10 @@ M.DEFAULT_HISTORY_LENGTH_SECONDS = 60
 M.DEFAULT_SAMPLE_INTERVAL_INDEX = utils.findIndex(M.SAMPLE_INTERVAL_OPTIONS, M.DEFAULT_SAMPLE_INTERVAL_SECONDS)
 M.DEFAULT_HISTORY_LENGTH_INDEX = utils.findIndex(M.HISTORY_LENGTH_OPTIONS, M.DEFAULT_HISTORY_LENGTH_SECONDS)
 
+-- Minimum seconds between automatic history saves (throttles disk I/O).
+-- Explicit saves triggered by trim() / clear() are always written immediately.
+M.HISTORY_SAVE_INTERVAL_SECONDS = 3
+
 ------------------------------------------------------------
 -- Display column widths (characters needed for right-aligned fields)
 ------------------------------------------------------------

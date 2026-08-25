@@ -376,7 +376,7 @@ local function sample()
     graph:addPoint("output", oVal)
 
     connected:set(true)
-    history.save()
+    history.maybeSave()
 end
 
 ------------------------------------------------------------

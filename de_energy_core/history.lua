@@ -27,6 +27,10 @@ M.output = {}
 local _historyLength
 local _historyLengthSeconds
 
+-- Tracks the os.clock() time of the last successful disk write.
+-- Initialised to -infinity so the very first maybeSave() always writes.
+local _lastSaveTime = -math.huge
+
 ------------------------------------------------------------
 -- Initialisation
 ------------------------------------------------------------
@@ -117,7 +121,7 @@ function M.load()
     )
 end
 
--- Persist M.input / M.output to disk.
+-- Persist M.input / M.output to disk unconditionally.
 -- Returns true on success, false on failure.
 function M.save()
     local handle = fs.open(const.HISTORY_PATH, "w")
@@ -127,7 +131,18 @@ function M.save()
     end
     handle.write(textutils.serialize({ input = M.input, output = M.output }))
     handle.close()
+    _lastSaveTime = os.clock()
     return true
+end
+
+-- Persist M.input / M.output to disk only when the configured throttle interval
+-- has elapsed since the last write. Returns true if a write was performed,
+-- false if the call was skipped or the write failed.
+function M.maybeSave()
+    if os.clock() - _lastSaveTime < const.HISTORY_SAVE_INTERVAL_SECONDS then
+        return false
+    end
+    return M.save()
 end
 
 ------------------------------------------------------------
