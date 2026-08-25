@@ -116,7 +116,7 @@ end
 -- without knowing about Basalt.
 history.init(historyLength, historyLengthSeconds)
 history.load()
-history.save() -- flush sanitised state back to disk on startup
+history.save() -- flush sanitized state back to disk on startup
 
 ------------------------------------------------------------
 -- History Statistics (computed over the live arrays)
@@ -189,6 +189,7 @@ local function findEnergyCore()
             return w
         end
     end
+    return nil
 end
 
 local function refreshPeripherals()
@@ -241,15 +242,15 @@ local function updateGraphBounds()
     local maximum, minimum = 1, math.huge
 
     if showInputGraph:get() then
-        for _, e in ipairs(history.input) do
-            maximum = math.max(maximum, e.value)
-            minimum = math.min(minimum, e.value)
+        for _, e in ipairs(history.samples) do
+            maximum = math.max(maximum, e.input)
+            minimum = math.min(minimum, e.input)
         end
     end
     if showOutputGraph:get() then
-        for _, e in ipairs(history.output) do
-            maximum = math.max(maximum, e.value)
-            minimum = math.min(minimum, e.value)
+        for _, e in ipairs(history.samples) do
+            maximum = math.max(maximum, e.output)
+            minimum = math.min(minimum, e.output)
         end
     end
 
@@ -284,11 +285,11 @@ local function fillGraphFromHistory()
         return
     end
     clearGraphSeries()
-    for _, e in ipairs(history.input) do
-        graph:addPoint("input", e.value)
+    for _, e in ipairs(history.samples) do
+        graph:addPoint("input", e.input)
     end
-    for _, e in ipairs(history.output) do
-        graph:addPoint("output", e.value)
+    for _, e in ipairs(history.samples) do
+        graph:addPoint("output", e.output)
     end
     updateGraphBounds()
 end
