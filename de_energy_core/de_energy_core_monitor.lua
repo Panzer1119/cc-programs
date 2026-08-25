@@ -449,7 +449,7 @@ local mainPage = frame:addColumn({
 
 local header = mainPage:addFrame({
     width = basalt.fill(),
-    height = 3,
+    height = 2,
     background = C.panel,
 })
 
