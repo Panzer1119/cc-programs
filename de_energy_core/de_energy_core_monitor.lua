@@ -1065,11 +1065,20 @@ footer:addLabel({
 footer:addLabel({
     x = 45,
     y = 1,
+    text = "NET",
+    foreground = C.net,
+})
+
+footer:addLabel({
+    x = 45 + 4,
+    y = 1,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return "NET " .. averageNetRateText()
+        return averageNetRateText()
     end),
-    foreground = C.net,
+    foreground = basalt.computed(function()
+        return averageNet:get() >= 0 and C.input or C.output
+    end),
 })
 
 footer:addLabel({
