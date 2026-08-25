@@ -685,6 +685,7 @@ ratePanelRow = ratePanelRow + 1
 ------------------------------------------------------------
 
 local energyUnitDropdown = frame:addDropdown({
+--local energyUnitDropdown = header:addDropdown({
     --x = function(self)
     --    return self.parent.width - 15
     --end,
@@ -693,6 +694,7 @@ local energyUnitDropdown = frame:addDropdown({
     end,
     --y = 1,
     y = 2,
+    --z = 2,
     --width = 13,
     width = 4,
     text = "RF",
@@ -701,6 +703,7 @@ local energyUnitDropdown = frame:addDropdown({
 })
 
 local rateUnitDropdown = frame:addDropdown({
+--local rateUnitDropdown = header:addDropdown({
     --x = function(self)
     --    return self.parent.width - 15
     --end,
@@ -709,6 +712,7 @@ local rateUnitDropdown = frame:addDropdown({
     end,
     --y = 1,
     y = 2,
+    --z = 2,
     --width = 13,
     width = 4,
     text = "/t",
