@@ -466,7 +466,7 @@ local corePanel = frame:addFrame({
         or self.parent.width - 4
     end,
     --width = basalt.fill(),
-    height = 8,
+    height = 5,
     background = C.panel,
 })
 
@@ -576,7 +576,7 @@ local ratePanel = frame:addFrame({
         or self.parent.width - 4
     end,
 
-    height = 8,
+    height = 5,
     background = C.panel,
 })
 
@@ -858,17 +858,19 @@ local graphPanel = frame:addFrame({
     x = 2,
 
     y = function(self)
-        return self.parent.width >= 60 and 14 or 23
+        --return self.parent.width >= 60 and 14 or 23
+        return self.parent.width >= 60 and 11 or 20
     end,
 
     --width = "{parent.width - 4}",
     width = "{parent.width - 2}",
 
     height = function(self)
-        local top = self.parent.width >= 60 and 14 or 23
+        --local top = self.parent.width >= 60 and 14 or 23
+        local top = self.parent.width >= 60 and 11 or 20
 
         return math.max(
-            8,
+            12,
             self.parent.height - top - 5
         )
     end,
@@ -905,7 +907,8 @@ graph = graphPanel:addPixelGraph({
     y = 3,
     width = "{parent.width - 3}",
     height = function(self)
-        return math.max(5, self.parent.height - 4)
+        --return math.max(12 - 3, self.parent.height - 4)
+        return math.max(12 - 3, self.parent.height - 3)
     end,
     minValue = 0,
     maxValue = 100,
@@ -929,10 +932,10 @@ graph:addSeries("output", {
 
 local footer = frame:addFrame({
     x = 2,
-    y = "{parent.height - 3}",
+    y = "{parent.height - 2}",
     --width = "{parent.width - 4}",
     width = "{parent.width - 2}",
-    height = 3,
+    height = 2,
     background = C.panel,
 })
 
