@@ -757,14 +757,13 @@ ratePanelRow = ratePanelRow + 1
 --ratePanelVerticalIndex = ratePanelVerticalIndex + 1
 
 ------------------------------------------------------------
--- Unit selectors
+-- Monitor text scale selector
 ------------------------------------------------------------
 
-local monitorTextScaleDropdown = header:addDropdown({
-    x = function(self)
-        return self.parent.width - 4 - 5 - 5 + 1
-    end,
-    y = 2,
+local monitorTextScaleDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - 1 - 4 - 1 - 4 - 1 - 3}",
+    y = 3,
     width = 3,
     text = "1.0",
     dropHeight = #MONITOR_TEXT_SCALES,
@@ -782,22 +781,20 @@ end)
 -- Unit selectors
 ------------------------------------------------------------
 
-local energyUnitDropdown = header:addDropdown({
-    x = function(self)
-        return self.parent.width - 5 - 5 + 1
-    end,
-    y = 2,
+local energyUnitDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - 1 - 4 - 1 - 4}",
+    y = 3,
     width = 4,
     text = "RF",
     dropHeight = #ENERGY_UNITS,
     items = ENERGY_UNITS,
 })
 
-local rateUnitDropdown = header:addDropdown({
-    x = function(self)
-        return self.parent.width - 5 + 1
-    end,
-    y = 2,
+local rateUnitDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - 1 - 4}",
+    y = 3,
     width = 4,
     text = "/t",
     dropHeight = #RATE_UNITS,
@@ -806,72 +803,6 @@ local rateUnitDropdown = header:addDropdown({
 
 energyUnitDropdown:bind("selected", energyUnitIndex)
 rateUnitDropdown:bind("selected", rateUnitIndex)
-
---local energyUnitButton = frame:addButton({
---    x = function(self)
---        return self.parent.width - 15
---    end,
---
---    y = 1,
---    width = 13,
---    height = 1,
---
---    text = energyUnit:map(function(value)
---        return value .. "  >"
---    end),
---
---    background = C.panel,
---    foreground = C.accent,
---})
---
---energyUnitButton:onClick(function()
---    energyUnit:update(function(current)
---        local index = 1
---
---        for i, value in ipairs(ENERGY_UNITS) do
---            if value == current then
---                index = i
---                break
---            end
---        end
---
---        return ENERGY_UNITS[index % #ENERGY_UNITS + 1]
---    end)
---    energyUnitFactor:set(ENERGY_UNIT_FACTORS[energyUnit:get()])
---end)
---
---local rateUnitButton = frame:addButton({
---    x = function(self)
---        return self.parent.width - 15
---    end,
---
---    y = 2,
---    width = 13,
---    height = 1,
---
---    text = rateUnit:map(function(value)
---        return value .. "  >"
---    end),
---
---    background = C.panel,
---    foreground = C.accent,
---})
---
---rateUnitButton:onClick(function()
---    rateUnit:update(function(current)
---        local index = 1
---
---        for i, value in ipairs(RATE_UNITS) do
---            if value == current then
---                index = i
---                break
---            end
---        end
---
---        return RATE_UNITS[index % #RATE_UNITS + 1]
---    end)
---    rateUnitFactor:set(RATE_UNIT_FACTORS[rateUnit:get()])
---end)
 
 ------------------------------------------------------------
 -- Graph Panel (with integrated footer content)
