@@ -817,16 +817,27 @@ local graphPanelContainer = contentPanel:addColumn({
 
 local graphHeader = graphPanelContainer:addRow({
     width = basalt.fill(),
-    height = basalt.auto(),
+    --height = basalt.auto(),
+    --minHeight = 1,
+    height = 1,
+    gap = 1,
+    --align = "start",
+    --FIXME TODO This does not work
+    justify = "spaceBetween",
 })
 
 graphHeader:addLabel({
     width = basalt.auto(),
-    text = "RATE HISTORY - " .. HISTORY_LENGTH_SECONDS .. " SECONDS",
+    text = " RATE HISTORY - " .. HISTORY_LENGTH_SECONDS .. " SECONDS",
     foreground = C.accent,
 })
 
-local toggleVisibilityInputGraph = graphHeader:addButton({
+local graphButtons = graphHeader:addRow({
+    gap = 1,
+    --alignSelf = "end",
+})
+
+local toggleVisibilityInputGraph = graphButtons:addButton({
     width = basalt.auto(),
     height = 1,
     text = "- INPUT",
@@ -836,7 +847,7 @@ local toggleVisibilityInputGraph = graphHeader:addButton({
     background = C.muted,
 })
 
-local toggleVisibilityOutputGraph = graphHeader:addButton({
+local toggleVisibilityOutputGraph = graphButtons:addButton({
     width = basalt.auto(),
     height = 1,
     text = "- OUTPUT",
@@ -881,19 +892,19 @@ end)
 
 local graphFooter = graphPanelContainer:addRow({
     width = basalt.fill(),
-    height = basalt.auto(),
+    height = 1,
     gap = 1,
-    padding = 1,
+    --padding = 1,
 })
 
 graphFooter:addLabel({
     width = basalt.auto(),
-    text = "" .. HISTORY_LENGTH_SECONDS .. "S AVG",
+    text = " " .. HISTORY_LENGTH_SECONDS .. "S AVG",
     foreground = C.accent,
 })
 
 graphFooter:addLabel({
-    width = basalt.fill(),
+    width = basalt.auto(),
     text = basalt.computed(function()
         return "IN " .. averageInputRateText()
     end),
@@ -907,7 +918,7 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = basalt.fill(),
+    width = basalt.auto(),
     text = basalt.computed(function()
         return averageOutputRateText()
     end),
@@ -921,7 +932,7 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = basalt.fill(),
+    width = basalt.auto(),
     text = basalt.computed(function()
         return averageNetRateText()
     end),
@@ -931,7 +942,7 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = basalt.auto(),
+    width = basalt.fill(),
     text = basalt.computed(function()
         return #inputHistory .. "/" .. HISTORY_LENGTH
     end),
