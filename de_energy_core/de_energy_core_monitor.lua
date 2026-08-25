@@ -16,18 +16,21 @@ local HISTORY_LENGTH = 60
 
 local ENERGY_CORE_TYPES = { "draconic_rf_storage", "draconicRfStorage", "energy_pylon", "energyPylon" }
 
-local ENERGY_UNITS = { "RF", "FE", "OP", "AE" }
+local ENERGY_UNITS = { "RF", "FE", "OP", "AE", "EU" }
 local ENERGY_UNIT_FACTORS = {
     RF = 1,
     FE = 1,
     OP = 1,
-    AE = 0.5,
+    AE = 2,
+    EU = 16,
 }
-local RATE_UNITS = { "/t", "/s", "/m" }
+local RATE_UNITS = { "/t", "/s", "/m", "/h", "/d" }
 local RATE_UNIT_FACTORS = {
     ["/t"] = 1,
     ["/s"] = 20,
-    ["/m"] = 1200,
+    ["/m"] = 20 * 60,
+    ["/h"] = 20 * 60 * 60,
+    ["/d"] = 20 * 60 * 60 * 24,
 }
 
 local TIER_CAPACITY = {
@@ -172,11 +175,11 @@ local function si(n, unit, forceSign, forceSpace)
 end
 
 local function withEnergyUnit(value, forceSign, forceSpace)
-    return si(value * energyUnitFactor:get(), energyUnit:get(), forceSign, forceSpace)
+    return si(value / energyUnitFactor:get(), energyUnit:get(), forceSign, forceSpace)
 end
 
 local function withEnergyRateUnit(value, forceSign, forceSpace)
-    return si(value * energyUnitFactor:get() * rateUnitFactor:get(), energyUnit:get() .. rateUnit:get(), forceSign, forceSpace)
+    return si(value * rateUnitFactor:get() / energyUnitFactor:get(), energyUnit:get() .. rateUnit:get(), forceSign, forceSpace)
 end
 
 -- Energy values
