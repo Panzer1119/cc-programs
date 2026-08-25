@@ -436,7 +436,7 @@ local mainPage = frame:addColumn({
     width = basalt.fill(),
     height = basalt.fill(),
     gap = 1,
-    padding = 1,
+    --padding = 1,
 })
 
 ------------------------------------------------------------
@@ -518,15 +518,16 @@ local contentPanel = mainPage:addColumn({
 local topPanelsRow = contentPanel:addRow({
     width = basalt.fill(),
     height = basalt.auto(),
+    --minHeight = 4,
+    --maxHeight = 6,
+    --shrink = 1,
     gap = 1,
 })
 
 local corePanel = topPanelsRow:addFrame({
     width = basalt.fill(1),
     minWidth = 30,
-    minHeight = 4,
-    maxHeight = 6,
-    shrink = 1,
+    height = basalt.auto(),
     background = C.panel,
 })
 
@@ -619,9 +620,7 @@ corePanel:addProgressBar({
 local ratePanel = topPanelsRow:addFrame({
     width = basalt.fill(1),
     minWidth = 30,
-    minHeight = 4,
-    maxHeight = 6,
-    shrink = 1,
+    height = basalt.auto(),
     background = C.panel,
 })
 
@@ -763,7 +762,7 @@ ratePanelRow = ratePanelRow + 1
 local monitorTextScaleDropdown = mainPage:addDropdown({
     position = "absolute",
     x = "{parent.width - 1 - 4 - 1 - 4 - 1 - 3}",
-    y = 3,
+    y = "{parent.y + 1}",
     width = 3,
     text = "1.0",
     dropHeight = #MONITOR_TEXT_SCALES,
@@ -784,7 +783,7 @@ end)
 local energyUnitDropdown = mainPage:addDropdown({
     position = "absolute",
     x = "{parent.width - 1 - 4 - 1 - 4}",
-    y = 3,
+    y = "{parent.y + 1}",
     width = 4,
     text = "RF",
     dropHeight = #ENERGY_UNITS,
@@ -794,7 +793,7 @@ local energyUnitDropdown = mainPage:addDropdown({
 local rateUnitDropdown = mainPage:addDropdown({
     position = "absolute",
     x = "{parent.width - 1 - 4}",
-    y = 3,
+    y = "{parent.y + 1}",
     width = 4,
     text = "/t",
     dropHeight = #RATE_UNITS,
@@ -895,6 +894,7 @@ local graphFooter = graphPanelContainer:addRow({
     height = 1,
     gap = 1,
     --padding = 1,
+    justify = "spaceBetween",
 })
 
 graphFooter:addLabel({
@@ -904,7 +904,7 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = basalt.auto(),
+    width = 16,
     text = basalt.computed(function()
         return "IN " .. averageInputRateText()
     end),
@@ -912,27 +912,27 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = basalt.auto(),
-    text = "OUT",
-    foreground = C.output,
-})
-
-graphFooter:addLabel({
-    width = basalt.auto(),
+    width = 16,
     text = basalt.computed(function()
-        return averageOutputRateText()
+        return "OUT " .. averageOutputRateText()
     end),
     foreground = C.output,
 })
 
-graphFooter:addLabel({
-    width = basalt.auto(),
+local graphFooterNet = graphFooter:addRow({
+    width = 17,
+    height = 1,
+    gap = 1,
+})
+
+graphFooterNet:addLabel({
+    width = 3,
     text = "NET",
     foreground = C.net,
 })
 
-graphFooter:addLabel({
-    width = basalt.auto(),
+graphFooterNet:addLabel({
+    width = 13,
     text = basalt.computed(function()
         return averageNetRateText()
     end),
@@ -942,7 +942,7 @@ graphFooter:addLabel({
 })
 
 graphFooter:addLabel({
-    width = basalt.fill(),
+    width = basalt.auto(),
     text = basalt.computed(function()
         return #inputHistory .. "/" .. HISTORY_LENGTH
     end),
@@ -955,7 +955,8 @@ graphFooter:addLabel({
 
 local footer = mainPage:addRow({
     width = basalt.fill(),
-    height = basalt.auto(),
+    --height = basalt.auto(),
+    height = 1,
     background = C.panel,
 })
 
