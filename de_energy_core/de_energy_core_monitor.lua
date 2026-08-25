@@ -11,9 +11,9 @@ basalt.use("charts")
 -- Configuration
 ------------------------------------------------------------
 
-local SAMPLE_INTERVAL_SECONDS = 1
-local HISTORY_LENGTH_SECONDS = 60
-local HISTORY_LENGTH = math.ceil(HISTORY_LENGTH_SECONDS / SAMPLE_INTERVAL_SECONDS)
+local DEFAULT_SAMPLE_INTERVAL_SECONDS = 1
+local DEFAULT_HISTORY_LENGTH_SECONDS = 60
+local DEFAULT_HISTORY_LENGTH = math.ceil(DEFAULT_HISTORY_LENGTH_SECONDS / DEFAULT_SAMPLE_INTERVAL_SECONDS)
 
 local DEFAULT_PERCENTAGE_NUMBER_LENGTH = #"100.00 %"
 local DEFAULT_ENERGY_NUMBER_LENGTH = #"+999.99 kRF"
@@ -215,7 +215,7 @@ end
 
 local function sanitizeHistoryEntries(entries, nowTimestamp)
     local sanitizedEntries = {}
-    local cutoffTimestamp = nowTimestamp - HISTORY_LENGTH_SECONDS
+    local cutoffTimestamp = nowTimestamp - DEFAULT_HISTORY_LENGTH_SECONDS
 
     if type(entries) ~= "table" then
         return sanitizedEntries
@@ -241,7 +241,7 @@ local function sanitizeHistoryEntries(entries, nowTimestamp)
         return a.timestamp < b.timestamp
     end)
 
-    while #sanitizedEntries > HISTORY_LENGTH do
+    while #sanitizedEntries > DEFAULT_HISTORY_LENGTH do
         table.remove(sanitizedEntries, 1)
     end
 
@@ -682,11 +682,11 @@ local function push(history, timestamp, value)
         value = value,
     }
 
-    while #history > HISTORY_LENGTH do
+    while #history > DEFAULT_HISTORY_LENGTH do
         table.remove(history, 1)
     end
 
-    local cutoffTimestamp = timestamp - HISTORY_LENGTH_SECONDS
+    local cutoffTimestamp = timestamp - DEFAULT_HISTORY_LENGTH_SECONDS
 
     while #history > 0 and history[1].timestamp < cutoffTimestamp do
         table.remove(history, 1)
@@ -899,7 +899,7 @@ headerEndData:addLabel({
             return C.muted
         end
 
-        local valuePercentage = value / (SAMPLE_INTERVAL_SECONDS * 1000)
+        local valuePercentage = value / (DEFAULT_SAMPLE_INTERVAL_SECONDS * 1000)
         if valuePercentage < 0.5 then
             return C.good
         elseif valuePercentage < 1.0 then
@@ -1271,7 +1271,7 @@ local graphHeader = graphPanelContainer:addRow({
 
 graphHeader:addLabel({
     width = basalt.auto(),
-    text = "RATE HISTORY - " .. HISTORY_LENGTH_SECONDS .. " SECONDS",
+    text = "RATE HISTORY - " .. DEFAULT_HISTORY_LENGTH_SECONDS .. " SECONDS",
     foreground = C.accent,
 })
 
@@ -1317,13 +1317,13 @@ graph = graphPanelContainer:addPixelGraph({
 
 graph:addSeries("input", {
     color = C.input,
-    pointCount = HISTORY_LENGTH,
+    pointCount = DEFAULT_HISTORY_LENGTH,
     visible = showInputGraph:get(),
 })
 
 graph:addSeries("output", {
     color = C.output,
-    pointCount = HISTORY_LENGTH,
+    pointCount = DEFAULT_HISTORY_LENGTH,
     visible = showOutputGraph:get(),
 })
 
@@ -1368,7 +1368,7 @@ local graphFooterAverage = graphFooter:addRow({
 
 graphFooterAverage:addLabel({
     width = basalt.auto(),
-    text = "" .. HISTORY_LENGTH_SECONDS .. "S AVG",
+    text = "" .. DEFAULT_HISTORY_LENGTH_SECONDS .. "S AVG",
     foreground = C.accent,
 })
 
@@ -1412,11 +1412,11 @@ graphFooterAverageNet:addLabel({
 
 graphFooterAverage:addLabel({
     width = basalt.computed(function()
-        return 2 * #tostring(HISTORY_LENGTH) + 1
+        return 2 * #tostring(DEFAULT_HISTORY_LENGTH) + 1
     end),
     text = basalt.computed(function()
-        local l = #tostring(HISTORY_LENGTH)
-        return string.format("%"..l.."d/%d", #inputHistory, HISTORY_LENGTH)
+        local l = #tostring(DEFAULT_HISTORY_LENGTH)
+        return string.format("%"..l.."d/%d", #inputHistory, DEFAULT_HISTORY_LENGTH)
     end),
     foreground = C.muted,
 })
@@ -1433,7 +1433,7 @@ local graphFooterMaximum = graphFooter:addRow({
 
 graphFooterMaximum:addLabel({
     width = basalt.auto(),
-    text = "" .. HISTORY_LENGTH_SECONDS .. "S MAX",
+    text = "" .. DEFAULT_HISTORY_LENGTH_SECONDS .. "S MAX",
     foreground = C.accent,
 })
 
@@ -1477,11 +1477,11 @@ graphFooterMaximumNet:addLabel({
 
 graphFooterMaximum:addLabel({
     width = basalt.computed(function()
-        return 2 * #tostring(HISTORY_LENGTH) + 1
+        return 2 * #tostring(DEFAULT_HISTORY_LENGTH) + 1
     end),
     text = basalt.computed(function()
-        local l = #tostring(HISTORY_LENGTH)
-        return string.format("%"..l.."d/%d", #inputHistory, HISTORY_LENGTH)
+        local l = #tostring(DEFAULT_HISTORY_LENGTH)
+        return string.format("%"..l.."d/%d", #inputHistory, DEFAULT_HISTORY_LENGTH)
     end),
     foreground = C.muted,
 })
@@ -1498,7 +1498,7 @@ local graphFooterMinimum = graphFooter:addRow({
 
 graphFooterMinimum:addLabel({
     width = basalt.auto(),
-    text = "" .. HISTORY_LENGTH_SECONDS .. "S MIN",
+    text = "" .. DEFAULT_HISTORY_LENGTH_SECONDS .. "S MIN",
     foreground = C.accent,
 })
 
@@ -1542,11 +1542,11 @@ graphFooterMinimumNet:addLabel({
 
 graphFooterMinimum:addLabel({
     width = basalt.computed(function()
-        return 2 * #tostring(HISTORY_LENGTH) + 1
+        return 2 * #tostring(DEFAULT_HISTORY_LENGTH) + 1
     end),
     text = basalt.computed(function()
-        local l = #tostring(HISTORY_LENGTH)
-        return string.format("%"..l.."d/%d", #inputHistory, HISTORY_LENGTH)
+        local l = #tostring(DEFAULT_HISTORY_LENGTH)
+        return string.format("%"..l.."d/%d", #inputHistory, DEFAULT_HISTORY_LENGTH)
     end),
     foreground = C.muted,
 })
@@ -1583,7 +1583,7 @@ basalt.schedule(function()
 
         local now = os.clock()
         local sampleIntervalDelaySeconds = now - lastSample
-        local delay = SAMPLE_INTERVAL_SECONDS - sampleIntervalDelaySeconds
+        local delay = DEFAULT_SAMPLE_INTERVAL_SECONDS - sampleIntervalDelaySeconds
         sampleIntervalDelayMs:set(math.floor(sampleIntervalDelaySeconds * 1000))
         sleep(math.max(0, delay))
     end
