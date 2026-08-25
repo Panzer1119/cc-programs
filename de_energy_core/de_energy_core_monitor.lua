@@ -464,12 +464,14 @@ header:addLabel({
     --foreground = C.muted,
     foreground = basalt.computed(function()
         local value = sampleIntervalDelayMs:get()
-
         if not value then
             return C.muted
-        elseif value < 500 then
+        end
+
+        local valuePercentage = value / (SAMPLE_INTERVAL_SECONDS * 1000)
+        if valuePercentage < 0.5 then
             return C.good
-        elseif value < 1000 then
+        elseif valuePercentage < 1.0 then
             return C.warning
         end
 
