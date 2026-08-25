@@ -14,6 +14,13 @@ basalt.use("charts")
 local SAMPLE_INTERVAL = 1
 local HISTORY_LENGTH = 60
 
+--local MONITOR_TEXT_SCALES = { 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0 }
+local MONITOR_TEXT_SCALES = { 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0 }
+-- multiply all scales by 2 so no decimals in the dropdown
+for i, v in ipairs(MONITOR_TEXT_SCALES) do
+    MONITOR_TEXT_SCALES[i] = v * 2
+end
+
 local ENERGY_CORE_TYPES = { "draconic_rf_storage", "draconicRfStorage", "energy_pylon", "energyPylon" }
 
 local ENERGY_UNITS = { "RF", "FE", "OP", "AE", "EU" }
@@ -73,7 +80,13 @@ local output = basalt.signal(0)
 
 local connected = basalt.signal(false)
 
--- TODO Persist user preferences for units and rate units
+-- TODO Persist user preferences
+local monitorTextScaleIndex = basalt.signal(2)
+--local monitorTextScale = basalt.signal(1)
+local monitorTextScale = basalt.computed(function()
+    return MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()]
+end)
+
 local energyUnitIndex = basalt.signal(1)
 --local energyUnit = basalt.signal("RF")
 local energyUnit = basalt.computed(function()
@@ -274,10 +287,17 @@ local function findMonitor()
     return peripheral.find("monitor")
 end
 
+--monitorTextScale:subscribe(function(value)
+--    if monitor then
+--        monitor.setTextScale(value)
+--    end
+--end, true)
+
 local function refreshPeripherals()
     if not monitorName or not peripheral.isPresent(monitorName) then
         monitor = findMonitor()
         if monitor then
+            monitor.setTextScale(monitorTextScale:get() / 2)
             monitorName = peripheral.getName(monitor)
             print("Using monitor: " .. monitorName)
         else
@@ -694,6 +714,35 @@ ratePanelRow = ratePanelRow + 1
 -- Unit selectors
 ------------------------------------------------------------
 
+local monitorTextScaleDropdown = frame:addDropdown({
+    --local monitorTextScaleDropdown = header:addDropdown({
+    --x = function(self)
+    --    return self.parent.width - 15
+    --end,
+    x = function(self)
+        return self.parent.width - 4 - 5 - 5 + 1
+    end,
+    --y = 1,
+    y = 2,
+    --z = 2,
+    --width = 13,
+    width = 3,
+    text = "1.0",
+    dropHeight = #MONITOR_TEXT_SCALES,
+    items = MONITOR_TEXT_SCALES,
+})
+
+monitorTextScaleDropdown:bind("selected", monitorTextScaleIndex)
+monitorTextScaleDropdown:onSelect(function(self, index, item)
+    if monitor then
+        monitor.setTextScale(item.value / 2)
+    end
+end)
+
+------------------------------------------------------------
+-- Unit selectors
+------------------------------------------------------------
+
 local energyUnitDropdown = frame:addDropdown({
 --local energyUnitDropdown = header:addDropdown({
     --x = function(self)
@@ -708,7 +757,7 @@ local energyUnitDropdown = frame:addDropdown({
     --width = 13,
     width = 4,
     text = "RF",
-    dropHeight = 5,
+    dropHeight = #ENERGY_UNITS,
     items = ENERGY_UNITS,
 })
 
@@ -726,7 +775,7 @@ local rateUnitDropdown = frame:addDropdown({
     --width = 13,
     width = 4,
     text = "/t",
-    dropHeight = 5,
+    dropHeight = #RATE_UNITS,
     items = RATE_UNITS,
 })
 
