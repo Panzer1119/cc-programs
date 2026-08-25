@@ -382,19 +382,24 @@ local function sample()
     graph:addPoint("input", newInput)
     graph:addPoint("output", newOutput)
 
-    -- Scale the graph to the current window's maximum.
+    -- Scale the graph to the current window's maximum and minimum.
     local maximum = 1
+    local minimum = 2140000000000
 
     for _, value in ipairs(inputHistory) do
         maximum = math.max(maximum, value)
+        minimum = math.min(minimum, value)
     end
 
     for _, value in ipairs(outputHistory) do
         maximum = math.max(maximum, value)
+        minimum = math.min(minimum, value)
     end
 
     --graph.maxValue = maximum * 1.1
     graph.maxValue = maximum
+    --graph.minValue = minimum / 1.1
+    graph.minValue = minimum
 end
 
 ------------------------------------------------------------
