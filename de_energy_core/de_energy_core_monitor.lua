@@ -524,7 +524,8 @@ local topPanelsRow = contentPanel:addRow({
 local corePanel = topPanelsRow:addFrame({
     width = basalt.fill(1),
     minWidth = 30,
-    height = basalt.auto(),
+    minHeight = 4,
+    maxHeight = 6,
     shrink = 1,
     background = C.panel,
 })
@@ -532,7 +533,6 @@ local corePanel = topPanelsRow:addFrame({
 corePanel:addLabel({
     x = 2,
     y = 1,
-    --width = basalt.fill(),
     text = "CORE",
     foreground = C.accent,
 })
@@ -619,7 +619,8 @@ corePanel:addProgressBar({
 local ratePanel = topPanelsRow:addFrame({
     width = basalt.fill(1),
     minWidth = 30,
-    height = basalt.auto(),
+    minHeight = 4,
+    maxHeight = 6,
     shrink = 1,
     background = C.panel,
 })
@@ -629,7 +630,6 @@ local ratePanelRow = 1
 ratePanel:addLabel({
     x = 2,
     y = ratePanelRow,
-    --width = basalt.fill(),
     text = "POWER FLOW",
     foreground = C.accent,
 })
