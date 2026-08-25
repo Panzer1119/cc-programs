@@ -192,6 +192,37 @@ local averageNet = basalt.computed(function()
     return averageInput:get() - averageOutput:get()
 end)
 
+local maximumInput = basalt.computed(function()
+    local maximum = 0
+
+    for _, value in ipairs(inputHistory) do
+        maximum = math.max(maximum, value)
+    end
+
+    return maximum
+end)
+
+local maximumOutput = basalt.computed(function()
+    local maximum = 0
+
+    for _, value in ipairs(outputHistory) do
+        maximum = math.max(maximum, value)
+    end
+
+    return maximum
+end)
+
+local maximumNet = basalt.computed(function()
+    local maximum = 0
+
+    for i, value in ipairs(inputHistory) do
+        value = value - outputHistory[i]
+        maximum = math.max(maximum, value)
+    end
+
+    return maximum
+end)
+
 ------------------------------------------------------------
 -- Formatting
 ------------------------------------------------------------
@@ -262,15 +293,29 @@ end
 -- Average energy rate values
 
 local function averageInputRateText()
-    return withEnergyRateUnit(averageInput:get())
+    return withEnergyRateUnit(averageInput:get(), false, true)
 end
 
 local function averageOutputRateText()
-    return withEnergyRateUnit(averageOutput:get())
+    return withEnergyRateUnit(averageOutput:get(), false, true)
 end
 
 local function averageNetRateText()
     return withEnergyRateUnit(averageNet:get(), true)
+end
+
+-- Maximum energy rate values
+
+local function maximumInputRateText()
+    return withEnergyRateUnit(maximumInput:get(), false, true)
+end
+
+local function maximumOutputRateText()
+    return withEnergyRateUnit(maximumOutput:get(), false, true)
+end
+
+local function maximumNetRateText()
+    return withEnergyRateUnit(maximumNet:get(), true)
 end
 
 ------------------------------------------------------------
@@ -937,7 +982,12 @@ end)
 -- Graph Footer (with averages)
 ------------------------------------------------------------
 
-local graphFooter = graphPanelContainer:addRow({
+local graphFooter = graphPanelContainer:addColumn({
+    width = basalt.fill(),
+    height = 2,
+})
+
+local graphFooterMaximum = graphFooter:addRow({
     width = basalt.fill(),
     height = 1,
     gap = 1,
@@ -945,13 +995,76 @@ local graphFooter = graphPanelContainer:addRow({
     justify = "spaceBetween",
 })
 
-graphFooter:addLabel({
+graphFooterMaximum:addLabel({
+    width = basalt.auto(),
+    text = "" .. HISTORY_LENGTH_SECONDS .. "S MAX",
+    foreground = C.accent,
+})
+
+graphFooterMaximum:addLabel({
+    width = 2 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
+    text = basalt.computed(function()
+        return "IN " .. maximumInputRateText()
+    end),
+    foreground = C.input,
+})
+
+graphFooterMaximum:addLabel({
+    width = 3 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
+    text = basalt.computed(function()
+        return "OUT " .. maximumOutputRateText()
+    end),
+    foreground = C.output,
+})
+
+local graphFooterMaximumNet = graphFooterMaximum:addRow({
+    width = 3 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
+    height = 1,
+    gap = 1,
+})
+
+graphFooterMaximumNet:addLabel({
+    width = 3,
+    text = "NET",
+    foreground = C.net,
+})
+
+graphFooterMaximumNet:addLabel({
+    width = DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
+    text = basalt.computed(function()
+        return maximumNetRateText()
+    end),
+    foreground = basalt.computed(function()
+        return maximumNet:get() >= 0 and C.input or C.output
+    end),
+})
+
+graphFooterMaximum:addLabel({
+    width = basalt.computed(function()
+        return 2 * #tostring(HISTORY_LENGTH) + 1
+    end),
+    text = basalt.computed(function()
+        local l = #tostring(HISTORY_LENGTH)
+        return string.format("%"..l.."d/%d", #inputHistory, HISTORY_LENGTH)
+    end),
+    foreground = C.muted,
+})
+
+local graphFooterAverage = graphFooter:addRow({
+    width = basalt.fill(),
+    height = 1,
+    gap = 1,
+    --padding = 1,
+    justify = "spaceBetween",
+})
+
+graphFooterAverage:addLabel({
     width = basalt.auto(),
     text = "" .. HISTORY_LENGTH_SECONDS .. "S AVG",
     foreground = C.accent,
 })
 
-graphFooter:addLabel({
+graphFooterAverage:addLabel({
     width = 2 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return "IN " .. averageInputRateText()
@@ -959,7 +1072,7 @@ graphFooter:addLabel({
     foreground = C.input,
 })
 
-graphFooter:addLabel({
+graphFooterAverage:addLabel({
     width = 3 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return "OUT " .. averageOutputRateText()
@@ -967,19 +1080,19 @@ graphFooter:addLabel({
     foreground = C.output,
 })
 
-local graphFooterNet = graphFooter:addRow({
+local graphFooterAverageNet = graphFooterAverage:addRow({
     width = 3 + 1 + DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     height = 1,
     gap = 1,
 })
 
-graphFooterNet:addLabel({
+graphFooterAverageNet:addLabel({
     width = 3,
     text = "NET",
     foreground = C.net,
 })
 
-graphFooterNet:addLabel({
+graphFooterAverageNet:addLabel({
     width = DEFAULT_ENERGY_RATE_NUMBER_LENGTH,
     text = basalt.computed(function()
         return averageNetRateText()
@@ -989,7 +1102,7 @@ graphFooterNet:addLabel({
     end),
 })
 
-graphFooter:addLabel({
+graphFooterAverage:addLabel({
     width = basalt.computed(function()
         return 2 * #tostring(HISTORY_LENGTH) + 1
     end),
