@@ -1,144 +1,77 @@
 -- Draconic Evolution Energy Core Monitor
 -- CC:Tweaked + Basalt 2.5
 --
--- Requires basalt.lua and config.lua in the same directory.
+-- Entry point. Requires (in the same directory):
+--   basalt.lua, constants.lua, utils.lua, settings.lua, history.lua
 
 local basalt = require("basalt")
 basalt.use("charts")
 
-local cfg = require("config")
+local const = require("constants")
+local utils = require("utils")
+local settings = require("settings")
+local history = require("history")
 
--- Unpack frequently-used config into locals for brevity.
-local C = cfg.C
-local SAMPLE_INTERVAL_OPTIONS = cfg.SAMPLE_INTERVAL_OPTIONS
-local HISTORY_LENGTH_OPTIONS = cfg.HISTORY_LENGTH_OPTIONS
-local FORMATTED_SAMPLE_INTERVAL_OPTIONS = cfg.FORMATTED_SAMPLE_INTERVAL_OPTIONS
-local FORMATTED_HISTORY_LENGTH_OPTIONS = cfg.FORMATTED_HISTORY_LENGTH_OPTIONS
-local MONITOR_TEXT_SCALES = cfg.MONITOR_TEXT_SCALES
-local FORMATTED_SCALED_MONITOR_TEXT_SCALES = cfg.FORMATTED_SCALED_MONITOR_TEXT_SCALES
-local ENERGY_UNITS = cfg.ENERGY_UNITS
-local ENERGY_UNIT_FACTORS = cfg.ENERGY_UNIT_FACTORS
-local RATE_UNITS = cfg.RATE_UNITS
-local RATE_UNIT_FACTORS = cfg.RATE_UNIT_FACTORS
-local TIER_CAPACITY = cfg.TIER_CAPACITY
-local ENERGY_CORE_TYPES = cfg.ENERGY_CORE_TYPES
-local SETTINGS_PATH = cfg.SETTINGS_PATH
-local HISTORY_PATH = cfg.HISTORY_PATH
-local DEFAULT_USER_SETTINGS = cfg.DEFAULT_USER_SETTINGS
--- Column width constants (shorthand)
-local W_PCT = cfg.PERCENTAGE_NUMBER_LENGTH
-local W_ENERGY = cfg.ENERGY_NUMBER_LENGTH
-local W_RATE = cfg.ENERGY_RATE_NUMBER_LENGTH
-local W_DATETIME = cfg.DATETIME_STRING_LENGTH
--- Functions
-local findIndex = cfg.findIndex
+-- Unpack constants used heavily in the UI to avoid repeated const.XYZ lookups.
+local C = const.C
+local W_PCT = const.W_PCT
+local W_ENERGY = const.W_ENERGY
+local W_RATE = const.W_RATE
+local W_DATETIME = const.W_DATETIME
 
 ------------------------------------------------------------
--- Utilities
+-- Settings
 ------------------------------------------------------------
 
-local function getUnixTimestamp()
-    return os.time(os.date("*t"))
-end
-
-local function clamp(value, minimum, maximum)
-    if value < minimum then
-        return minimum
-    end
-    if value > maximum then
-        return maximum
-    end
-    return value
-end
-
-------------------------------------------------------------
--- User Settings – load / sanitize
-------------------------------------------------------------
-
-local function sanitizeUserSettings(s)
-    s = type(s) == "table" and s or {}
-    return {
-        monitorTextScaleIndex = clamp(tonumber(s.monitorTextScaleIndex) or DEFAULT_USER_SETTINGS.monitorTextScaleIndex, 1, #MONITOR_TEXT_SCALES),
-        energyUnitIndex = clamp(tonumber(s.energyUnitIndex) or DEFAULT_USER_SETTINGS.energyUnitIndex, 1, #ENERGY_UNITS),
-        rateUnitIndex = clamp(tonumber(s.rateUnitIndex) or DEFAULT_USER_SETTINGS.rateUnitIndex, 1, #RATE_UNITS),
-        sampleIntervalIndex = clamp(tonumber(s.sampleIntervalIndex) or DEFAULT_USER_SETTINGS.sampleIntervalIndex, 1, #SAMPLE_INTERVAL_OPTIONS),
-        historyLengthIndex = clamp(tonumber(s.historyLengthIndex) or DEFAULT_USER_SETTINGS.historyLengthIndex, 1, #HISTORY_LENGTH_OPTIONS),
-        showInputGraph = s.showInputGraph == nil and DEFAULT_USER_SETTINGS.showInputGraph or not not s.showInputGraph,
-        showOutputGraph = s.showOutputGraph == nil and DEFAULT_USER_SETTINGS.showOutputGraph or not not s.showOutputGraph,
-    }
-end
-
-local function loadUserSettings()
-    local handle = fs.open(SETTINGS_PATH, "r")
-    if not handle then
-        return sanitizeUserSettings(nil)
-    end
-
-    local content = handle.readAll()
-    handle.close()
-
-    if not content or content == "" then
-        return sanitizeUserSettings(nil)
-    end
-
-    local ok, settings = pcall(textutils.unserialize, content)
-    if not ok or type(settings) ~= "table" then
-        print('Failed to load settings from "' .. SETTINGS_PATH .. '".')
-        return sanitizeUserSettings(nil)
-    end
-
-    return sanitizeUserSettings(settings)
-end
-
-local userSettings = loadUserSettings()
+local savedSettings = settings.load()
 
 ------------------------------------------------------------
 -- Reactive State
 ------------------------------------------------------------
 
--- Live sensor readings (written by the sampler coroutine)
+-- Live sensor readings (written by the sampler coroutine).
 local energy = basalt.signal(0)
 local maxEnergy = basalt.signal(0)
 local input = basalt.signal(0)
 local output = basalt.signal(0)
 local connected = basalt.signal(false)
 
--- User-controlled settings (persisted)
-local monitorTextScaleIndex = basalt.signal(userSettings.monitorTextScaleIndex)
-local energyUnitIndex = basalt.signal(userSettings.energyUnitIndex)
-local rateUnitIndex = basalt.signal(userSettings.rateUnitIndex)
-local sampleIntervalIndex = basalt.signal(userSettings.sampleIntervalIndex)
-local historyLengthIndex = basalt.signal(userSettings.historyLengthIndex)
-local showInputGraph = basalt.signal(userSettings.showInputGraph)
-local showOutputGraph = basalt.signal(userSettings.showOutputGraph)
+-- User-controlled settings.
+local monitorTextScaleIndex = basalt.signal(savedSettings.monitorTextScaleIndex)
+local energyUnitIndex = basalt.signal(savedSettings.energyUnitIndex)
+local rateUnitIndex = basalt.signal(savedSettings.rateUnitIndex)
+local sampleIntervalIndex = basalt.signal(savedSettings.sampleIntervalIndex)
+local historyLengthIndex = basalt.signal(savedSettings.historyLengthIndex)
+local showInputGraph = basalt.signal(savedSettings.showInputGraph)
+local showOutputGraph = basalt.signal(savedSettings.showOutputGraph)
 
--- Computed settings values
-local monitorTextScale = basalt.computed(function() return MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()]
+-- Derived from settings signals.
+local monitorTextScale = basalt.computed(function() return const.MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()]
 end)
-local energyUnit = basalt.computed(function() return ENERGY_UNITS[energyUnitIndex:get()]
+local energyUnit = basalt.computed(function() return const.ENERGY_UNITS[energyUnitIndex:get()]
 end)
-local energyUnitFactor = basalt.computed(function() return ENERGY_UNIT_FACTORS[energyUnit:get()]
+local energyUnitFactor = basalt.computed(function() return const.ENERGY_UNIT_FACTORS[energyUnit:get()]
 end)
-local rateUnit = basalt.computed(function() return RATE_UNITS[rateUnitIndex:get()]
+local rateUnit = basalt.computed(function() return const.RATE_UNITS[rateUnitIndex:get()]
 end)
-local rateUnitFactor = basalt.computed(function() return RATE_UNIT_FACTORS[rateUnit:get()]
+local rateUnitFactor = basalt.computed(function() return const.RATE_UNIT_FACTORS[rateUnit:get()]
 end)
 
-local sampleIntervalSeconds = basalt.computed(function() return SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]
+local sampleIntervalSeconds = basalt.computed(function() return const.SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]
 end)
-local historyLengthSeconds = basalt.computed(function() return HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]
+local historyLengthSeconds = basalt.computed(function() return const.HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]
 end)
 local historyLength = basalt.computed(function()
     return math.ceil(historyLengthSeconds:get() / sampleIntervalSeconds:get())
 end)
 
--- Computed sensor values
+-- Derived from sensor readings.
 local tier = basalt.computed(function()
     local max = maxEnergy:get()
     if max > 2140000000000 then
         return 8
     end
-    return TIER_CAPACITY[max] or 0
+    return const.TIER_CAPACITY[max] or 0
 end)
 
 local isInfinite = basalt.computed(function() return tier:get() == 8
@@ -157,20 +90,16 @@ end)
 local net = basalt.computed(function() return input:get() - output:get()
 end)
 
--- Sampler timing feedback
+-- Sampler timing feedback.
 local sampleIntervalDelayMs = basalt.signal(0)
 
 ------------------------------------------------------------
 -- Settings Persistence
 ------------------------------------------------------------
 
-local function persistUserSettings()
-    local handle = fs.open(SETTINGS_PATH, "w")
-    if not handle then
-        print("Failed to open settings file for writing.")
-        return
-    end
-    handle.write(textutils.serialize({
+-- Call whenever a setting signal changes to write all settings to disk.
+local function persistSettings()
+    settings.save({
         monitorTextScaleIndex = monitorTextScaleIndex:get(),
         energyUnitIndex = energyUnitIndex:get(),
         rateUnitIndex = rateUnitIndex:get(),
@@ -178,327 +107,87 @@ local function persistUserSettings()
         historyLengthIndex = historyLengthIndex:get(),
         showInputGraph = showInputGraph:get(),
         showOutputGraph = showOutputGraph:get(),
-    }))
-    handle.close()
+    })
 end
 
 ------------------------------------------------------------
--- History Management
+-- History Initialisation
 ------------------------------------------------------------
 
--- Rolling sample arrays; each entry is { timestamp = int, value = number }.
-local inputHistory = {}
-local outputHistory = {}
-
--- Assigned during UI construction; used by history helpers below.
-local graph
-
-local function sanitizeHistoryEntries(entries, nowTimestamp)
-    local result = {}
-    local cutoff = nowTimestamp - historyLengthSeconds:get()
-    local maxLen = historyLength:get()
-
-    if type(entries) ~= "table" then
-        return result
-    end
-
-    for _, e in ipairs(entries) do
-        local t = type(e) == "table" and tonumber(e.timestamp) or nil
-        local v = type(e) == "table" and tonumber(e.value) or nil
-        if t and v and t >= cutoff and t <= nowTimestamp then
-            result[#result + 1] = { timestamp = math.floor(t), value = v }
-        end
-    end
-
-    table.sort(result, function(a, b)
-        if a.timestamp == b.timestamp then
-            return a.value < b.value
-        end
-        return a.timestamp < b.timestamp
-    end)
-
-    while #result > maxLen do
-        table.remove(result, 1)
-    end
-    return result
-end
-
--- Keep both arrays the same length by trimming the longer one from the front.
-local function normalizeHistoryPair(inp, out)
-    local len = math.min(#inp, #out)
-    while #inp > len do
-        table.remove(inp, 1)
-    end
-    while #out > len do
-        table.remove(out, 1)
-    end
-    return inp, out
-end
-
-local function loadHistory()
-    local handle = fs.open(HISTORY_PATH, "r")
-    if not handle then
-        return {}, {}
-    end
-
-    local content = handle.readAll()
-    handle.close()
-
-    if not content or content == "" then
-        return {}, {}
-    end
-
-    local ok, data = pcall(textutils.unserialize, content)
-    if not ok or type(data) ~= "table" then
-        print('Failed to load history from "' .. HISTORY_PATH .. '".')
-        return {}, {}
-    end
-
-    local now = getUnixTimestamp()
-    return normalizeHistoryPair(
-        sanitizeHistoryEntries(data.inputHistory, now),
-        sanitizeHistoryEntries(data.outputHistory, now)
-    )
-end
-
-local function persistHistory()
-    local handle = fs.open(HISTORY_PATH, "w")
-    if not handle then
-        print("Failed to open history file for writing.")
-        return
-    end
-    handle.write(textutils.serialize({ inputHistory = inputHistory, outputHistory = outputHistory }))
-    handle.close()
-end
-
-local function pushSample(history, timestamp, value)
-    history[#history + 1] = { timestamp = timestamp, value = value }
-
-    local cutoff = timestamp - historyLengthSeconds:get()
-    local maxLen = historyLength:get()
-
-    while #history > maxLen do
-        table.remove(history, 1)
-    end
-    while #history > 0 and history[1].timestamp < cutoff do
-        table.remove(history, 1)
-    end
-end
-
--- Graph series helpers (require `graph` to be assigned first).
-
-local function updateGraphBounds()
-    if not graph then
-        return
-    end
-
-    local maximum, minimum = 1, math.huge
-
-    if showInputGraph:get() then
-        for _, e in ipairs(inputHistory) do
-            maximum = math.max(maximum, e.value)
-            minimum = math.min(minimum, e.value)
-        end
-    end
-    if showOutputGraph:get() then
-        for _, e in ipairs(outputHistory) do
-            maximum = math.max(maximum, e.value)
-            minimum = math.min(minimum, e.value)
-        end
-    end
-
-    if minimum == math.huge then
-        minimum = 0
-    end
-    graph.maxValue = math.max(maximum, minimum + 1)
-    graph.minValue = minimum
-end
-
-local function setupGraphSeries()
-    if not graph then
-        return
-    end
-    graph:addSeries("input", { color = C.input, pointCount = historyLength:get(), visible = showInputGraph:get() })
-    graph:addSeries("output", { color = C.output, pointCount = historyLength:get(), visible = showOutputGraph:get() })
-end
-
-local function clearGraphSeries()
-    if not graph then
-        return
-    end
-    graph:removeSeries("input")
-    graph:removeSeries("output")
-    setupGraphSeries()
-    graph.maxValue = 100
-    graph.minValue = 0
-end
-
-local function fillGraphFromHistory()
-    if not graph then
-        return
-    end
-    clearGraphSeries()
-    for _, e in ipairs(inputHistory) do
-        graph:addPoint("input", e.value)
-    end
-    for _, e in ipairs(outputHistory) do
-        graph:addPoint("output", e.value)
-    end
-    updateGraphBounds()
-end
-
-local function clearHistory()
-    inputHistory = {}
-    outputHistory = {}
-    clearGraphSeries()
-    persistHistory()
-end
-
-local function trimHistoryToCurrentSettings()
-    local maxLen = historyLength:get()
-    local cutoff = getUnixTimestamp() - historyLengthSeconds:get()
-
-    while #inputHistory > maxLen do
-        table.remove(inputHistory, 1)
-    end
-    while #outputHistory > maxLen do
-        table.remove(outputHistory, 1)
-    end
-    while #inputHistory > 0 and inputHistory[1].timestamp < cutoff do
-        table.remove(inputHistory, 1)
-    end
-    while #outputHistory > 0 and outputHistory[1].timestamp < cutoff do
-        table.remove(outputHistory, 1)
-    end
-
-    inputHistory, outputHistory = normalizeHistoryPair(inputHistory, outputHistory)
-    fillGraphFromHistory()
-    persistHistory()
-end
-
--- Bootstrap history from disk on startup.
-inputHistory, outputHistory = loadHistory()
-persistHistory()
+-- Inject the window-size signals so history.lua can enforce limits
+-- without knowing about Basalt.
+history.init(historyLength, historyLengthSeconds)
+history.load()
+history.save() -- flush sanitised state back to disk on startup
 
 ------------------------------------------------------------
--- History Statistics (computed signals)
+-- History Statistics (computed over the live arrays)
 ------------------------------------------------------------
 
--- Generic helpers that operate on a single history array.
-local function historyAvg(h)
-    if #h == 0 then
-        return 0
-    end
-    local total = 0
-    for _, e in ipairs(h) do
-        total = total + e.value
-    end
-    return total / #h
-end
-
-local function historyMax(h)
-    if #h == 0 then
-        return 0
-    end
-    local max = 0
-    for _, e in ipairs(h) do
-        max = math.max(max, e.value)
-    end
-    return max
-end
-
-local function historyMin(h)
-    if #h == 0 then
-        return 0
-    end
-    local min = math.huge
-    for _, e in ipairs(h) do
-        min = math.min(min, e.value)
-    end
-    return min
-end
-
-local averageInput = basalt.computed(function() return historyAvg(inputHistory)
+local averageInput = basalt.computed(function() return history.avg(history.input)
 end)
-local averageOutput = basalt.computed(function() return historyAvg(outputHistory)
+local averageOutput = basalt.computed(function() return history.avg(history.output)
 end)
-local maximumInput = basalt.computed(function() return historyMax(inputHistory)
+local maximumInput = basalt.computed(function() return history.max(history.input)
 end)
-local maximumOutput = basalt.computed(function() return historyMax(outputHistory)
+local maximumOutput = basalt.computed(function() return history.max(history.output)
 end)
-local minimumInput = basalt.computed(function() return historyMin(inputHistory)
+local minimumInput = basalt.computed(function() return history.min(history.input)
 end)
-local minimumOutput = basalt.computed(function() return historyMin(outputHistory)
+local minimumOutput = basalt.computed(function() return history.min(history.output)
 end)
 
--- Net (input − output) statistics iterate paired arrays.
+-- Net (input − output) aggregates iterate paired arrays.
 local averageNet = basalt.computed(function()
-    if #inputHistory == 0 then
+    if #history.input == 0 then
         return 0
     end
     local total = 0
-    for i = 1, #inputHistory do
-        total = total + inputHistory[i].value - outputHistory[i].value
+    for i = 1, #history.input do
+        total = total + history.input[i].value - history.output[i].value
     end
-    return total / #inputHistory
+    return total / #history.input
 end)
 
 local maximumNet = basalt.computed(function()
-    if #inputHistory == 0 then
+    if #history.input == 0 then
         return 0
     end
-    local max = 0
-    for i = 1, #inputHistory do
-        max = math.max(max, inputHistory[i].value - outputHistory[i].value)
+    local m = 0
+    for i = 1, #history.input do
+        m = math.max(m, history.input[i].value - history.output[i].value)
     end
-    return max
+    return m
 end)
 
 local minimumNet = basalt.computed(function()
-    if #inputHistory == 0 then
+    if #history.input == 0 then
         return 0
     end
-    local min = math.huge
-    for i = 1, #inputHistory do
-        min = math.min(min, inputHistory[i].value - outputHistory[i].value)
+    local m = math.huge
+    for i = 1, #history.input do
+        m = math.min(m, history.input[i].value - history.output[i].value)
     end
-    return min
+    return m
 end)
 
 ------------------------------------------------------------
 -- Formatting
 ------------------------------------------------------------
 
--- Format a number with an SI prefix (e.g. 1500 → "  1.50 k").
--- forceSign prepends "+" for positive values; forceSpace reserves sign space.
-local function si(n, unit, forceSign, forceSpace)
-    if not n then
-        return "N/A"
-    end
-    n = math.floor(n)
-    local prefixes = { "", "k", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" }
-    local i = 1
-    while math.abs(n) >= 1000 and i < #prefixes do
-        n = n / 1000
-        i = i + 1
-    end
-    local fmt = forceSign and "%+7.2f %s%s" or (forceSpace and "%7.2f %s%s" or "%6.2f %s%s")
-    return string.format(fmt, n, prefixes[i], unit or "")
-end
-
 local function withEnergyUnit(value, forceSign, forceSpace)
-    return si(value / energyUnitFactor:get(), energyUnit:get(), forceSign, forceSpace)
+    return utils.si(value / energyUnitFactor:get(), energyUnit:get(), forceSign, forceSpace)
 end
 
 local function withRateUnit(value, forceSign, forceSpace)
-    return si(
+    return utils.si(
         value * rateUnitFactor:get() / energyUnitFactor:get(),
         energyUnit:get() .. rateUnit:get(),
         forceSign, forceSpace
     )
 end
 
--- Color helpers shared by several UI elements.
+-- Color helpers reused across multiple UI elements.
 local function chargeColor(pct)
     if not pct then
         return C.accent
@@ -524,13 +213,12 @@ local energyCore, energyCoreName
 local monitor, monitorName
 
 local function findEnergyCore()
-    for _, typeName in ipairs(ENERGY_CORE_TYPES) do
+    for _, typeName in ipairs(const.ENERGY_CORE_TYPES) do
         local w = peripheral.find(typeName)
         if w then
             return w
         end
     end
-    return nil
 end
 
 local function refreshPeripherals()
@@ -569,6 +257,84 @@ local function callEnergyCore(method)
 end
 
 ------------------------------------------------------------
+-- Graph Management (PixelGraph wrappers — kept separate from history.lua)
+------------------------------------------------------------
+
+-- Forward-declared; assigned when the graph widget is created in the UI section.
+local graph
+
+local function updateGraphBounds()
+    if not graph then
+        return
+    end
+
+    local maximum, minimum = 1, math.huge
+
+    if showInputGraph:get() then
+        for _, e in ipairs(history.input) do
+            maximum = math.max(maximum, e.value)
+            minimum = math.min(minimum, e.value)
+        end
+    end
+    if showOutputGraph:get() then
+        for _, e in ipairs(history.output) do
+            maximum = math.max(maximum, e.value)
+            minimum = math.min(minimum, e.value)
+        end
+    end
+
+    if minimum == math.huge then
+        minimum = 0
+    end
+    graph.maxValue = math.max(maximum, minimum + 1)
+    graph.minValue = minimum
+end
+
+local function setupGraphSeries()
+    if not graph then
+        return
+    end
+    graph:addSeries("input", { color = C.input, pointCount = historyLength:get(), visible = showInputGraph:get() })
+    graph:addSeries("output", { color = C.output, pointCount = historyLength:get(), visible = showOutputGraph:get() })
+end
+
+local function clearGraphSeries()
+    if not graph then
+        return
+    end
+    graph:removeSeries("input")
+    graph:removeSeries("output")
+    setupGraphSeries()
+    graph.maxValue = 100
+    graph.minValue = 0
+end
+
+local function fillGraphFromHistory()
+    if not graph then
+        return
+    end
+    clearGraphSeries()
+    for _, e in ipairs(history.input) do
+        graph:addPoint("input", e.value)
+    end
+    for _, e in ipairs(history.output) do
+        graph:addPoint("output", e.value)
+    end
+    updateGraphBounds()
+end
+
+-- Wrappers that combine the data operation (history.*) with the graph update.
+local function clearHistory()
+    history.clear()
+    clearGraphSeries()
+end
+
+local function trimHistoryToCurrentSettings()
+    history.trim()
+    fillGraphFromHistory()
+end
+
+------------------------------------------------------------
 -- Sampling
 ------------------------------------------------------------
 
@@ -603,15 +369,14 @@ local function sample()
     input:set(iVal)
     output:set(oVal)
 
-    local now = getUnixTimestamp()
-    pushSample(inputHistory, now, iVal)
-    pushSample(outputHistory, now, oVal)
+    local now = utils.getUnixTimestamp()
+    history.push(now, iVal, oVal)
 
     graph:addPoint("input", iVal)
     graph:addPoint("output", oVal)
 
     connected:set(true)
-    persistHistory()
+    history.save()
 end
 
 ------------------------------------------------------------
@@ -641,7 +406,7 @@ local header = mainPage:addRow({
     background = C.panel,
 })
 
--- Left side: title + connection status
+-- Left: title + connection status.
 local headerStart = header:addColumn({ width = basalt.auto(), height = basalt.fill() })
 
 headerStart:addLabel({ text = "DRACONIC EVOLUTION ENERGY CORE", foreground = C.accent })
@@ -659,7 +424,7 @@ headerStart:addLabel({
     end),
 })
 
--- Right side: sample-delay indicator + datetime
+-- Right: sample-delay indicator + datetime.
 local headerEndData = header:addColumn({ width = basalt.auto(), height = basalt.fill() })
 :addRow({ width = basalt.fill(), height = basalt.fill(), gap = 1 })
 
@@ -685,19 +450,19 @@ headerEndData:addLabel({
     foreground = C.muted,
 })
 
--- ── Settings Dropdowns (absolute, top-right) ─────────────
+-- ── Settings Dropdowns (absolute-positioned, top-right) ──
 --
--- Layout (right → left): [rate unit][energy unit][scale][history][sample]
--- Each x expression subtracts the cumulative width of all dropdowns to its right.
+-- Layout right → left: [rate unit] [energy unit] [scale] [history] [sample]
+-- Each `x` expression subtracts the total width of all dropdowns to its right.
 
 local sampleIntervalDropdown = mainPage:addDropdown({
     position = "absolute",
     x = "{parent.width - (5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 5 + 3,
-    text = FORMATTED_SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()],
-    dropHeight = #FORMATTED_SAMPLE_INTERVAL_OPTIONS,
-    items = FORMATTED_SAMPLE_INTERVAL_OPTIONS,
+    text = const.FORMATTED_SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()],
+    dropHeight = #const.FORMATTED_SAMPLE_INTERVAL_OPTIONS,
+    items = const.FORMATTED_SAMPLE_INTERVAL_OPTIONS,
     background = C.muted,
 })
 
@@ -706,9 +471,9 @@ local historyLengthDropdown = mainPage:addDropdown({
     x = "{parent.width - (5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 5 + 2,
-    text = FORMATTED_HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()],
-    dropHeight = #FORMATTED_HISTORY_LENGTH_OPTIONS,
-    items = FORMATTED_HISTORY_LENGTH_OPTIONS,
+    text = const.FORMATTED_HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()],
+    dropHeight = #const.FORMATTED_HISTORY_LENGTH_OPTIONS,
+    items = const.FORMATTED_HISTORY_LENGTH_OPTIONS,
     background = C.muted,
 })
 
@@ -717,9 +482,9 @@ local monitorTextScaleDropdown = mainPage:addDropdown({
     x = "{parent.width - (3+1 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 3 + 1,
-    text = FORMATTED_SCALED_MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()],
-    dropHeight = #FORMATTED_SCALED_MONITOR_TEXT_SCALES,
-    items = FORMATTED_SCALED_MONITOR_TEXT_SCALES,
+    text = const.FORMATTED_SCALED_MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()],
+    dropHeight = #const.FORMATTED_SCALED_MONITOR_TEXT_SCALES,
+    items = const.FORMATTED_SCALED_MONITOR_TEXT_SCALES,
     background = C.muted,
 })
 
@@ -728,9 +493,9 @@ local energyUnitDropdown = mainPage:addDropdown({
     x = "{parent.width - (4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 4,
-    text = ENERGY_UNITS[energyUnitIndex:get()],
-    dropHeight = #ENERGY_UNITS,
-    items = ENERGY_UNITS,
+    text = const.ENERGY_UNITS[energyUnitIndex:get()],
+    dropHeight = #const.ENERGY_UNITS,
+    items = const.ENERGY_UNITS,
     background = C.muted,
 })
 
@@ -739,39 +504,39 @@ local rateUnitDropdown = mainPage:addDropdown({
     x = "{parent.width - 4 + 1}",
     y = "{parent.y + 1}",
     width = 4,
-    text = RATE_UNITS[rateUnitIndex:get()],
-    dropHeight = #RATE_UNITS,
-    items = RATE_UNITS,
+    text = const.RATE_UNITS[rateUnitIndex:get()],
+    dropHeight = #const.RATE_UNITS,
+    items = const.RATE_UNITS,
     background = C.muted,
 })
 
--- Wire each dropdown to its signal and persist changes.
+-- Wire dropdowns to signals and persist on every change.
 sampleIntervalDropdown:bind("selected", sampleIntervalIndex)
 sampleIntervalDropdown:onSelect(function()
     trimHistoryToCurrentSettings()
-    persistUserSettings()
+    persistSettings()
 end)
 
 historyLengthDropdown:bind("selected", historyLengthIndex)
 historyLengthDropdown:onSelect(function()
     trimHistoryToCurrentSettings()
-    persistUserSettings()
+    persistSettings()
 end)
 
 monitorTextScaleDropdown:bind("selected", monitorTextScaleIndex)
 monitorTextScaleDropdown:onSelect(function(_, index)
     if monitor then
-        monitor.setTextScale(MONITOR_TEXT_SCALES[index])
+        monitor.setTextScale(const.MONITOR_TEXT_SCALES[index])
     end
-    persistUserSettings()
+    persistSettings()
 end)
 
 energyUnitDropdown:bind("selected", energyUnitIndex)
-energyUnitDropdown:onSelect(function() persistUserSettings()
+energyUnitDropdown:onSelect(function() persistSettings()
 end)
 
 rateUnitDropdown:bind("selected", rateUnitIndex)
-rateUnitDropdown:onSelect(function() persistUserSettings()
+rateUnitDropdown:onSelect(function() persistSettings()
 end)
 
 -- ── Content Area ─────────────────────────────────────────
@@ -822,7 +587,7 @@ do
     end) })
 end
 
--- Charge % – only visible for finite-capacity cores
+-- Charge % (hidden for infinite-capacity cores)
 do
     local row = corePanel:addRow({ width = W_CORE_LABEL + 1 + W_PCT, height = 1, gap = 1, visible = isFinite })
     row:addLabel({ width = W_CORE_LABEL, text = "Charge:" })
@@ -837,7 +602,7 @@ do
     })
 end
 
--- Charge progress bar (also hidden for infinite cores)
+-- Progress bar (also hidden for infinite cores)
 corePanel:addProgressBar({
     width = basalt.fill(),
     height = 1,
@@ -863,8 +628,7 @@ ratePanel:addLabel({ text = "POWER FLOW", foreground = C.accent })
 
 local W_RATE_LABEL = #"Output:"
 
--- Helper: one labeled rate row.
--- valueColorFn is optional; falls back to the static labelColor.
+-- Helper: one labeled rate row. valueColorFn is optional.
 local function addRateRow(parent, labelText, labelColor, valueFn, valueColorFn)
     local row = parent:addRow({ width = W_RATE_LABEL + 1 + W_RATE, height = 1, gap = 1 })
     row:addLabel({ width = W_RATE_LABEL, text = labelText, foreground = labelColor })
@@ -873,7 +637,6 @@ local function addRateRow(parent, labelText, labelColor, valueFn, valueColorFn)
         text = basalt.computed(valueFn),
         foreground = valueColorFn and basalt.computed(valueColorFn) or labelColor,
     })
-    return row
 end
 
 addRateRow(ratePanel, "Input:", C.input, function() return withRateUnit(input:get(), false, true)
@@ -889,7 +652,7 @@ end,
 
 local graphPanel = contentPanel:addColumn({ width = basalt.fill(), height = basalt.fill(), background = C.panel })
 
--- Graph header: title on the left, toggle/clear buttons on the right.
+-- Header: title left, toggle/clear buttons right.
 local graphHeader = graphPanel:addRow({ width = basalt.fill(), height = 1, gap = 1, justify = "spaceBetween" })
 
 graphHeader:addLabel({
@@ -908,38 +671,35 @@ local toggleInputBtn = graphButtons:addButton({
     end),
     background = C.muted,
 })
-
 local toggleOutputBtn = graphButtons:addButton({
     width = basalt.auto(), height = 1, text = "- OUTPUT",
     foreground = basalt.computed(function() return showOutputGraph:get() and C.output or C.panel
     end),
     background = C.muted,
 })
-
 local clearBtn = graphButtons:addButton({
     width = basalt.auto(), height = 1, text = "CLEAR",
     foreground = C.text, background = C.muted,
 })
 
--- Graph widget (fills remaining space between header and footer).
+-- Graph widget (fills the space between header and footer).
 graph = graphPanel:addPixelGraph({ width = basalt.fill(), height = basalt.fill(), minValue = 0, maxValue = 100 })
 
 setupGraphSeries()
 fillGraphFromHistory()
 
--- Button handlers
 toggleInputBtn:onClick(function()
     showInputGraph:set(not showInputGraph:get())
     graph:setSeriesVisible("input", showInputGraph:get())
     updateGraphBounds()
-    persistUserSettings()
+    persistSettings()
 end)
 
 toggleOutputBtn:onClick(function()
     showOutputGraph:set(not showOutputGraph:get())
     graph:setSeriesVisible("output", showOutputGraph:get())
     updateGraphBounds()
-    persistUserSettings()
+    persistSettings()
 end)
 
 clearBtn:onClick(clearHistory)
@@ -948,19 +708,15 @@ clearBtn:onClick(clearHistory)
 
 local graphFooter = graphPanel:addColumn({ width = basalt.fill(), height = 3 })
 
--- Helper: one statistics row showing IN / OUT / NET values and the sample count.
--- getLabelFn → string e.g. function() return "60S AVG" end
--- inFn / outFn → string formatted rate (no sign, with space)
--- netFn → string formatted net rate (with sign)
--- netColorFn → color
+-- Helper: one statistics row with IN / OUT / NET values and a sample count.
+-- getLabelFn () → string e.g. function() return "60S AVG" end
+-- inFn / outFn () → string formatted rate (no sign, with space)
+-- netFn () → string formatted net rate (with sign)
+-- netColorFn () → color
 local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColorFn)
     local row = parent:addRow({ width = basalt.fill(), height = 1, gap = 1, justify = "spaceBetween" })
 
-    row:addLabel({
-        width = basalt.auto(),
-        text = basalt.computed(getLabelFn),
-        foreground = C.accent,
-    })
+    row:addLabel({ width = basalt.auto(), text = basalt.computed(getLabelFn), foreground = C.accent })
 
     row:addLabel({
         width = 2 + 1 + W_RATE,
@@ -968,7 +724,6 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
         end),
         foreground = C.input,
     })
-
     row:addLabel({
         width = 3 + 1 + W_RATE,
         text = basalt.computed(function() return "OUT " .. outFn()
@@ -976,7 +731,7 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
         foreground = C.output,
     })
 
-    -- NET is a nested row so label and value can have independent colors.
+    -- Nested row so NET label and value can carry independent colors.
     local netRow = row:addRow({ width = 3 + 1 + W_RATE, height = 1, gap = 1 })
     netRow:addLabel({ width = 3, text = "NET", foreground = C.net })
     netRow:addLabel({
@@ -985,13 +740,13 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
         foreground = basalt.computed(netColorFn),
     })
 
-    -- Sample count: "NNN/MMM"
+    -- Sample count "NNN/MMM".
     row:addLabel({
         width = basalt.computed(function() return 2 * #tostring(historyLength:get()) + 1
         end),
         text = basalt.computed(function()
             local max = historyLength:get()
-            return string.format("%" .. #tostring(max) .. "d/%d", #inputHistory, max)
+            return string.format("%" .. #tostring(max) .. "d/%d", #history.input, max)
         end),
         foreground = C.muted,
     })
@@ -1038,8 +793,8 @@ addFooterStatRow(graphFooter,
 
 -- ── Status Footer ─────────────────────────────────────────
 
-local statusFooter = mainPage:addRow({ width = basalt.fill(), height = 1, background = C.panel })
-statusFooter:addLabel({ x = 2, y = 1, text = "Ready", foreground = C.good })
+mainPage:addRow({ width = basalt.fill(), height = 1, background = C.panel })
+:addLabel({ x = 2, y = 1, text = "Ready", foreground = C.good })
 
 ------------------------------------------------------------
 -- Sampler Coroutine
@@ -1053,9 +808,8 @@ basalt.schedule(function()
         end
 
         local elapsed = os.clock() - lastSample
-        local delay = sampleIntervalSeconds:get() - elapsed
         sampleIntervalDelayMs:set(math.floor(elapsed * 1000))
-        sleep(math.max(0, delay))
+        sleep(math.max(0, sampleIntervalSeconds:get() - elapsed))
     end
 end)
 
