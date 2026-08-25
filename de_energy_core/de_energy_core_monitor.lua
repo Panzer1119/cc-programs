@@ -42,14 +42,14 @@ local RATE_UNIT_FACTORS = {
 }
 
 local TIER_CAPACITY = {
-    [45500000]      = 1,
-    [273000000]     = 2,
-    [1640000000]    = 3,
-    [9880000000]    = 4,
-    [59300000000]   = 5,
-    [356000000000]  = 6,
+    [45500000] = 1,
+    [273000000] = 2,
+    [1640000000] = 3,
+    [9880000000] = 4,
+    [59300000000] = 5,
+    [356000000000] = 6,
     [2140000000000] = 7,
-    [-1]            = 8,
+    [-1] = 8,
 }
 
 ------------------------------------------------------------
@@ -57,17 +57,17 @@ local TIER_CAPACITY = {
 ------------------------------------------------------------
 
 local C = {
-    bg       = colors.black,
-    panel    = colors.gray,
-    text     = colors.white,
-    muted    = colors.lightGray,
-    accent   = colors.cyan,
-    input    = colors.lime,
-    output   = colors.red,
-    net      = colors.yellow,
-    good     = colors.lime,
-    warning  = colors.yellow,
-    danger   = colors.red,
+    bg = colors.black,
+    panel = colors.gray,
+    text = colors.white,
+    muted = colors.lightGray,
+    accent = colors.cyan,
+    input = colors.lime,
+    output = colors.red,
+    net = colors.yellow,
+    good = colors.lime,
+    warning = colors.yellow,
+    danger = colors.red,
 }
 
 ------------------------------------------------------------
@@ -795,7 +795,7 @@ end)
 ------------------------------------------------------------
 
 local energyUnitDropdown = frame:addDropdown({
---local energyUnitDropdown = header:addDropdown({
+    --local energyUnitDropdown = header:addDropdown({
     --x = function(self)
     --    return self.parent.width - 15
     --end,
@@ -813,7 +813,7 @@ local energyUnitDropdown = frame:addDropdown({
 })
 
 local rateUnitDropdown = frame:addDropdown({
---local rateUnitDropdown = header:addDropdown({
+    --local rateUnitDropdown = header:addDropdown({
     --x = function(self)
     --    return self.parent.width - 15
     --end,
@@ -907,7 +907,7 @@ local graphPanel = frame:addFrame({
     x = 2,
 
     y = function(self)
-        --TODO Use flex layout for this?
+    --TODO Use flex layout for this?
         if isFinite:get() then
             return self.parent.width >= 60 and 13 or 22
         end
@@ -918,7 +918,7 @@ local graphPanel = frame:addFrame({
     width = "{parent.width - 2}",
 
     height = function(self)
-        --TODO Use flex layout for this?
+    --TODO Use flex layout for this?
         local top = self.parent.width >= 60 and 11 or 20
         if isFinite:get() then
             top = self.parent.width >= 60 and 13 or 22
@@ -983,8 +983,8 @@ graph = graphPanel:addPixelGraph({
     y = 3,
     width = "{parent.width - 3}",
     height = function(self)
-        --return math.max(12 - 3, self.parent.height - 4)
-        --TODO Use flex layout for this?
+    --return math.max(12 - 3, self.parent.height - 4)
+    --TODO Use flex layout for this?
         return math.max((isInfinite:get() and 12 or 10) - 3, self.parent.height - 3)
     end,
     minValue = 0,
