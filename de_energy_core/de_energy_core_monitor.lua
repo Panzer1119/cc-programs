@@ -990,9 +990,12 @@ graphFooterNet:addLabel({
 })
 
 graphFooter:addLabel({
-    width = basalt.auto(),
+    width = basalt.computed(function()
+        return 2 * #tostring(HISTORY_LENGTH) + 1
+    end),
     text = basalt.computed(function()
-        return #inputHistory .. "/" .. HISTORY_LENGTH
+        local l = #tostring(HISTORY_LENGTH)
+        return string.format("%"..l.."d/%d", #inputHistory, HISTORY_LENGTH)
     end),
     foreground = C.muted,
 })
