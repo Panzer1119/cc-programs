@@ -34,6 +34,7 @@ local energy = basalt.signal(0)
 local maxEnergy = basalt.signal(0)
 local input = basalt.signal(0)
 local output = basalt.signal(0)
+local transfer = basalt.signal(0)
 local connected = basalt.signal(false)
 
 -- User-controlled settings.
@@ -87,9 +88,6 @@ local chargePercentage = basalt.computed(function()
     return math.max(0, math.min(100, energy:get() / max * 100))
 end)
 
-local net = basalt.computed(function() return input:get() - output:get()
-end)
-
 -- Sampler timing feedback.
 local sampleIntervalDelayMs = basalt.signal(0)
 
@@ -124,51 +122,23 @@ history.save() -- flush sanitised state back to disk on startup
 -- History Statistics (computed over the live arrays)
 ------------------------------------------------------------
 
-local averageInput = basalt.computed(function() return history.avg(history.input)
+local averageInput = basalt.computed(function() return history.avg("input")
 end)
-local averageOutput = basalt.computed(function() return history.avg(history.output)
+local averageOutput = basalt.computed(function() return history.avg("output")
 end)
-local maximumInput = basalt.computed(function() return history.max(history.input)
+local averageTransfer = basalt.computed(function() return history.avg("transfer")
 end)
-local maximumOutput = basalt.computed(function() return history.max(history.output)
+local maximumInput = basalt.computed(function() return history.max("input")
 end)
-local minimumInput = basalt.computed(function() return history.min(history.input)
+local maximumOutput = basalt.computed(function() return history.max("output")
 end)
-local minimumOutput = basalt.computed(function() return history.min(history.output)
+local maximumTransfer = basalt.computed(function() return history.max("transfer")
 end)
-
--- Net (input − output) aggregates iterate paired arrays.
-local averageNet = basalt.computed(function()
-    if #history.input == 0 then
-        return 0
-    end
-    local total = 0
-    for i = 1, #history.input do
-        total = total + history.input[i].value - history.output[i].value
-    end
-    return total / #history.input
+local minimumInput = basalt.computed(function() return history.min("input")
 end)
-
-local maximumNet = basalt.computed(function()
-    if #history.input == 0 then
-        return 0
-    end
-    local m = 0
-    for i = 1, #history.input do
-        m = math.max(m, history.input[i].value - history.output[i].value)
-    end
-    return m
+local minimumOutput = basalt.computed(function() return history.min("output")
 end)
-
-local minimumNet = basalt.computed(function()
-    if #history.input == 0 then
-        return 0
-    end
-    local m = math.huge
-    for i = 1, #history.input do
-        m = math.min(m, history.input[i].value - history.output[i].value)
-    end
-    return m
+local minimumTransfer = basalt.computed(function() return history.min("transfer")
 end)
 
 ------------------------------------------------------------
@@ -353,8 +323,9 @@ local function sample()
     local okM, newMax = callEnergyCore("getMaxEnergyStored")
     local okI, newInput = callEnergyCore("getInputPerTick")
     local okO, newOutput = callEnergyCore("getOutputPerTick")
+    local okT, newTransfer = callEnergyCore("getTransferPerTick")
 
-    if not (okE and okM and okI and okO) then
+    if not (okE and okM and okI and okO and okT) then
         connected:set(false)
         return
     end
@@ -363,14 +334,16 @@ local function sample()
     local mVal = tonumber(newMax) or 0
     local iVal = tonumber(newInput) or 0
     local oVal = tonumber(newOutput) or 0
+    local tVal = tonumber(newTransfer) or 0
 
     energy:set(eVal)
     maxEnergy:set(mVal)
     input:set(iVal)
     output:set(oVal)
+    transfer:set(tVal)
 
     local now = utils.getUnixTimestamp()
-    history.push(now, iVal, oVal)
+    history.push(now, eVal, mVal, iVal, oVal, tVal)
 
     graph:addPoint("input", iVal)
     graph:addPoint("output", oVal)
@@ -643,9 +616,9 @@ addRateRow(ratePanel, "Input:", C.input, function() return withRateUnit(input:ge
 end)
 addRateRow(ratePanel, "Output:", C.output, function() return withRateUnit(output:get(), false, true)
 end)
-addRateRow(ratePanel, "Net:", C.net, function() return withRateUnit(net:get(), true)
+addRateRow(ratePanel, "Net:", C.net, function() return withRateUnit(transfer:get(), true)
 end,
-    function() return netColor(net:get())
+    function() return netColor(transfer:get())
     end)
 
 -- ── Graph Panel ───────────────────────────────────────────
@@ -759,9 +732,9 @@ addFooterStatRow(graphFooter,
     end,
     function() return withRateUnit(averageOutput:get(), false, true)
     end,
-    function() return withRateUnit(averageNet:get(), true)
+    function() return withRateUnit(averageTransfer:get(), true)
     end,
-    function() return netColor(averageNet:get())
+    function() return netColor(averageTransfer:get())
     end
 )
 
@@ -772,9 +745,9 @@ addFooterStatRow(graphFooter,
     end,
     function() return withRateUnit(maximumOutput:get(), false, true)
     end,
-    function() return withRateUnit(maximumNet:get(), true)
+    function() return withRateUnit(maximumTransfer:get(), true)
     end,
-    function() return netColor(maximumNet:get())
+    function() return netColor(maximumTransfer:get())
     end
 )
 
@@ -785,9 +758,9 @@ addFooterStatRow(graphFooter,
     end,
     function() return withRateUnit(minimumOutput:get(), false, true)
     end,
-    function() return withRateUnit(minimumNet:get(), true)
+    function() return withRateUnit(minimumTransfer:get(), true)
     end,
-    function() return netColor(minimumNet:get())
+    function() return netColor(minimumTransfer:get())
     end
 )
 

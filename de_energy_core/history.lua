@@ -20,7 +20,7 @@ local utils = require("utils")
 local M = {}
 
 -- Public sample array. Each entry:
---   { timestamp = int, energy = number, maxEnergy = number, input = number, output = number }
+--   { timestamp = int, energy = number, maxEnergy = number, input = number, output = number, transfer = number }
 M.samples = {}
 
 -- Basalt signal references set by M.init(). Required before any other call.
@@ -64,6 +64,7 @@ local function sanitizeEntries(entries, nowTs)
                 maxEnergy = tonumber(e.maxEnergy) or 0,
                 input = tonumber(e.input) or 0,
                 output = tonumber(e.output) or 0,
+                transfer = tonumber(e.transfer) or 0,
             }
         end
     end
@@ -125,6 +126,7 @@ function M.load()
                     maxEnergy = 0,
                     input = tonumber(inp[i].value) or 0,
                     output = tonumber(out[i].value) or 0,
+                    transfer = (tonumber(inp[i].value) or 0) - (tonumber(out[i].value) or 0),
                 }
             end
         end
@@ -161,7 +163,7 @@ end
 ------------------------------------------------------------
 
 -- Append one sample and trim to the current history-length window.
-function M.push(timestamp, energy, maxEnergy, iVal, oVal)
+function M.push(timestamp, energy, maxEnergy, input, output, transfer)
     local cutoff = timestamp - _historyLengthSeconds:get()
     local maxLen = _historyLength:get()
 
@@ -169,8 +171,9 @@ function M.push(timestamp, energy, maxEnergy, iVal, oVal)
         timestamp = timestamp,
         energy = energy,
         maxEnergy = maxEnergy,
-        input = iVal,
-        output = oVal,
+        input = input,
+        output = output,
+        transfer = transfer and transfer or input - output,
     }
     while #M.samples > maxLen do
         table.remove(M.samples, 1)
