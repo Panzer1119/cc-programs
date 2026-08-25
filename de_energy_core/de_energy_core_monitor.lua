@@ -570,7 +570,9 @@ local ratePanel = frame:addFrame({
 
     width = function(self)
         return self.parent.width >= 60
-        and self.parent.width - math.floor(self.parent.width / 2) - 2
+        --and self.parent.width - math.floor(self.parent.width / 2) - 2
+        --or self.parent.width - 2
+        and self.parent.width - math.floor(self.parent.width / 2) - 1
         or self.parent.width - 4
     end,
 
@@ -859,7 +861,8 @@ local graphPanel = frame:addFrame({
         return self.parent.width >= 60 and 14 or 23
     end,
 
-    width = "{parent.width - 4}",
+    --width = "{parent.width - 4}",
+    width = "{parent.width - 2}",
 
     height = function(self)
         local top = self.parent.width >= 60 and 14 or 23
@@ -927,7 +930,8 @@ graph:addSeries("output", {
 local footer = frame:addFrame({
     x = 2,
     y = "{parent.height - 3}",
-    width = "{parent.width - 4}",
+    --width = "{parent.width - 4}",
+    width = "{parent.width - 2}",
     height = 3,
     background = C.panel,
 })
