@@ -57,6 +57,8 @@ local TIER_CAPACITY = {
     [-1] = 8,
 }
 
+local SETTINGS_FILE_NAME = "de_energy_core_monitor.settings"
+local SETTINGS_PATH = "/" .. SETTINGS_FILE_NAME
 ------------------------------------------------------------
 -- Colors
 ------------------------------------------------------------
@@ -79,6 +81,64 @@ local C = {
 -- Reactive application state
 ------------------------------------------------------------
 
+local DEFAULT_USER_SETTINGS = {
+    monitorTextScaleIndex = 2,
+    energyUnitIndex = 1,
+    rateUnitIndex = 1,
+    showInputGraph = true,
+    showOutputGraph = true,
+}
+
+local function clamp(value, minimum, maximum)
+    if value < minimum then
+        return minimum
+    end
+
+    if value > maximum then
+        return maximum
+    end
+
+    return value
+end
+
+local function sanitizeUserSettings(settings)
+    settings = type(settings) == "table" and settings or {}
+
+    return {
+        monitorTextScaleIndex = clamp(tonumber(settings.monitorTextScaleIndex) or DEFAULT_USER_SETTINGS.monitorTextScaleIndex, 1, #MONITOR_TEXT_SCALES),
+        energyUnitIndex = clamp(tonumber(settings.energyUnitIndex) or DEFAULT_USER_SETTINGS.energyUnitIndex, 1, #ENERGY_UNITS),
+        rateUnitIndex = clamp(tonumber(settings.rateUnitIndex) or DEFAULT_USER_SETTINGS.rateUnitIndex, 1, #RATE_UNITS),
+        showInputGraph = settings.showInputGraph == nil and DEFAULT_USER_SETTINGS.showInputGraph or not not settings.showInputGraph,
+        showOutputGraph = settings.showOutputGraph == nil and DEFAULT_USER_SETTINGS.showOutputGraph or not not settings.showOutputGraph,
+    }
+end
+
+local function loadUserSettings()
+    local handle = fs.open(SETTINGS_PATH, "r")
+
+    if not handle then
+        return sanitizeUserSettings(nil)
+    end
+
+    local content = handle.readAll()
+    handle.close()
+
+    if not content or content == "" then
+        return sanitizeUserSettings(nil)
+    end
+
+    local ok, settings = pcall(textutils.unserialize, content)
+
+    if not ok or type(settings) ~= "table" then
+        print("Failed to load user settings from \"" .. SETTINGS_PATH .. "\".")
+        return sanitizeUserSettings(nil)
+    end
+
+    return sanitizeUserSettings(settings)
+end
+
+local userSettings = loadUserSettings()
+
 local energy = basalt.signal(0)
 local maxEnergy = basalt.signal(0)
 local input = basalt.signal(0)
@@ -86,14 +146,13 @@ local output = basalt.signal(0)
 
 local connected = basalt.signal(false)
 
--- TODO Persist user preferences
-local monitorTextScaleIndex = basalt.signal(2)
+local monitorTextScaleIndex = basalt.signal(userSettings.monitorTextScaleIndex)
 --local monitorTextScale = basalt.signal(1)
 local monitorTextScale = basalt.computed(function()
     return MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()]
 end)
 
-local energyUnitIndex = basalt.signal(1)
+local energyUnitIndex = basalt.signal(userSettings.energyUnitIndex)
 --local energyUnit = basalt.signal("RF")
 local energyUnit = basalt.computed(function()
     return ENERGY_UNITS[energyUnitIndex:get()]
@@ -102,7 +161,7 @@ end)
 local energyUnitFactor = basalt.computed(function()
     return ENERGY_UNIT_FACTORS[energyUnit:get()]
 end)
-local rateUnitIndex = basalt.signal(1)
+local rateUnitIndex = basalt.signal(userSettings.rateUnitIndex)
 --local rateUnit = basalt.signal("/t")
 local rateUnit = basalt.computed(function()
     return RATE_UNITS[rateUnitIndex:get()]
@@ -112,8 +171,39 @@ local rateUnitFactor = basalt.computed(function()
     return RATE_UNIT_FACTORS[rateUnit:get()]
 end)
 
-local showInputGraph = basalt.signal(true)
-local showOutputGraph = basalt.signal(true)
+local showInputGraph = basalt.signal(userSettings.showInputGraph)
+local showOutputGraph = basalt.signal(userSettings.showOutputGraph)
+
+local function getUserSettings()
+    return {
+        monitorTextScaleIndex = monitorTextScaleIndex:get(),
+        energyUnitIndex = energyUnitIndex:get(),
+        rateUnitIndex = rateUnitIndex:get(),
+        showInputGraph = showInputGraph:get(),
+        showOutputGraph = showOutputGraph:get(),
+    }
+end
+
+local function saveUserSettings()
+    local handle = fs.open(SETTINGS_PATH, "w")
+
+    if not handle then
+        return false, "Unable to open settings file for writing"
+    end
+
+    handle.write(textutils.serialize(getUserSettings()))
+    handle.close()
+
+    return true
+end
+
+local function persistUserSettings()
+    local ok, err = saveUserSettings()
+
+    if not ok then
+        print("Failed to save user settings: " .. tostring(err))
+    end
+end
 
 -- Rolling samples. These are internal application data;
 -- the four signals above remain the primary live state.
@@ -502,6 +592,10 @@ local function sample()
         end
     end
 
+    if minimum == 2140000000000 then
+        minimum = 0
+    end
+
     --graph.maxValue = maximum * 1.1
     graph.maxValue = maximum
     --graph.minValue = minimum / 1.1
@@ -656,7 +750,7 @@ local monitorTextScaleDropdown = mainPage:addDropdown({
     x = "{parent.width - (3 + 1 + 4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 3,
-    text = "2",
+    text = tostring(MONITOR_TEXT_SCALES[monitorTextScaleIndex:get()]),
     dropHeight = #MONITOR_TEXT_SCALES,
     items = MONITOR_TEXT_SCALES,
     background = C.muted,
@@ -667,6 +761,7 @@ monitorTextScaleDropdown:onSelect(function(self, index, item)
     if monitor then
         monitor.setTextScale(item.value / 2)
     end
+    persistUserSettings()
 end)
 
 -- Unit selectors
@@ -677,7 +772,7 @@ local energyUnitDropdown = mainPage:addDropdown({
     x = "{parent.width - (4 + 1 + 4) + 1}",
     y = "{parent.y + 1}",
     width = 4,
-    text = "RF",
+    text = ENERGY_UNITS[energyUnitIndex:get()],
     dropHeight = #ENERGY_UNITS,
     items = ENERGY_UNITS,
     background = C.muted,
@@ -689,7 +784,7 @@ local rateUnitDropdown = mainPage:addDropdown({
     x = "{parent.width - (4) + 1}",
     y = "{parent.y + 1}",
     width = 4,
-    text = "/t",
+    text = RATE_UNITS[rateUnitIndex:get()],
     dropHeight = #RATE_UNITS,
     items = RATE_UNITS,
     background = C.muted,
@@ -698,6 +793,13 @@ local rateUnitDropdown = mainPage:addDropdown({
 energyUnitDropdown:bind("selected", energyUnitIndex)
 rateUnitDropdown:bind("selected", rateUnitIndex)
 
+energyUnitDropdown:onSelect(function()
+    persistUserSettings()
+end)
+
+rateUnitDropdown:onSelect(function()
+    persistUserSettings()
+end)
 
 ------------------------------------------------------------
 -- Core and Rate Panels Row
@@ -1005,23 +1107,25 @@ graph = graphPanelContainer:addPixelGraph({
 graph:addSeries("input", {
     color = C.input,
     pointCount = HISTORY_LENGTH,
-    visible = true,
+    visible = showInputGraph:get(),
 })
 
 graph:addSeries("output", {
     color = C.output,
     pointCount = HISTORY_LENGTH,
-    visible = true,
+    visible = showOutputGraph:get(),
 })
 
 toggleVisibilityInputGraph:onClick(function()
     showInputGraph:set(not showInputGraph:get())
     graph:setSeriesVisible("input", showInputGraph:get())
+    persistUserSettings()
 end)
 
 toggleVisibilityOutputGraph:onClick(function()
     showOutputGraph:set(not showOutputGraph:get())
     graph:setSeriesVisible("output", showOutputGraph:get())
+    persistUserSettings()
 end)
 
 ------------------------------------------------------------
