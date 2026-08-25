@@ -423,6 +423,16 @@ header:addLabel({
     end),
 })
 
+header:addLabel({
+    x = "{parent.width - 19}",
+    y = 1,
+    width = 19,
+    text = basalt.computed(function()
+        return os.date("%Y-%m-%d %H:%M:%S")
+    end),
+    foreground = C.muted,
+})
+
 ------------------------------------------------------------
 -- Core panel
 ------------------------------------------------------------
