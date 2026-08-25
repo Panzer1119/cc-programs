@@ -209,6 +209,7 @@ end
 -- the four signals above remain the primary live state.
 local inputHistory = {}
 local outputHistory = {}
+local graph
 
 local lastSample = 0
 local sampleIntervalDelayMs = basalt.signal(0)
@@ -283,6 +284,10 @@ local averageNet = basalt.computed(function()
 end)
 
 local maximumInput = basalt.computed(function()
+    if #inputHistory == 0 then
+        return 0
+    end
+
     local maximum = 0
 
     for _, value in ipairs(inputHistory) do
@@ -293,6 +298,10 @@ local maximumInput = basalt.computed(function()
 end)
 
 local maximumOutput = basalt.computed(function()
+    if #outputHistory == 0 then
+        return 0
+    end
+
     local maximum = 0
 
     for _, value in ipairs(outputHistory) do
@@ -303,6 +312,10 @@ local maximumOutput = basalt.computed(function()
 end)
 
 local maximumNet = basalt.computed(function()
+    if #inputHistory == 0 then
+        return 0
+    end
+
     local maximum = 0
 
     for i, value in ipairs(inputHistory) do
@@ -314,6 +327,10 @@ local maximumNet = basalt.computed(function()
 end)
 
 local minimumInput = basalt.computed(function()
+    if #inputHistory == 0 then
+        return 0
+    end
+
     local minimum = math.huge
 
     for _, value in ipairs(inputHistory) do
@@ -324,6 +341,10 @@ local minimumInput = basalt.computed(function()
 end)
 
 local minimumOutput = basalt.computed(function()
+    if #outputHistory == 0 then
+        return 0
+    end
+
     local minimum = math.huge
 
     for _, value in ipairs(outputHistory) do
@@ -334,6 +355,10 @@ local minimumOutput = basalt.computed(function()
 end)
 
 local minimumNet = basalt.computed(function()
+    if #inputHistory == 0 then
+        return 0
+    end
+
     local minimum = math.huge
 
     for i, value in ipairs(inputHistory) do
@@ -534,6 +559,53 @@ local function push(history, value)
     end
 end
 
+local function updateGraphBounds()
+    if not graph then
+        return
+    end
+
+    local maximum = 1
+    local minimum = math.huge
+
+    if showInputGraph:get() then
+        for _, value in ipairs(inputHistory) do
+            maximum = math.max(maximum, value)
+            minimum = math.min(minimum, value)
+        end
+    end
+
+    if showOutputGraph:get() then
+        for _, value in ipairs(outputHistory) do
+            maximum = math.max(maximum, value)
+            minimum = math.min(minimum, value)
+        end
+    end
+
+    if minimum == math.huge then
+        minimum = 0
+    end
+
+    graph.maxValue = math.max(maximum, minimum + 1)
+    graph.minValue = minimum
+end
+
+local function clearGraphDisplay()
+    if not graph then
+        return
+    end
+    graph:clear("input")
+    graph:clear("output")
+    graph.maxValue = 100
+    graph.minValue = 0
+end
+
+local function clearHistory()
+    inputHistory = {}
+    outputHistory = {}
+
+    clearGraphDisplay()
+end
+
 local function sample()
     lastSample = os.clock()
     refreshPeripherals()
@@ -574,32 +646,7 @@ local function sample()
     graph:addPoint("input", newInput)
     graph:addPoint("output", newOutput)
 
-    -- Scale the graph to the current window's maximum and minimum.
-    local maximum = 1
-    local minimum = 2140000000000
-
-    if showInputGraph:get() then
-        for _, value in ipairs(inputHistory) do
-            maximum = math.max(maximum, value)
-            minimum = math.min(minimum, value)
-        end
-    end
-
-    if showOutputGraph:get() then
-        for _, value in ipairs(outputHistory) do
-            maximum = math.max(maximum, value)
-            minimum = math.min(minimum, value)
-        end
-    end
-
-    if minimum == 2140000000000 then
-        minimum = 0
-    end
-
-    --graph.maxValue = maximum * 1.1
-    graph.maxValue = maximum
-    --graph.minValue = minimum / 1.1
-    graph.minValue = minimum
+    updateGraphBounds()
 end
 
 ------------------------------------------------------------
@@ -1097,6 +1144,14 @@ local toggleVisibilityOutputGraph = graphButtons:addButton({
     background = C.muted,
 })
 
+local clearHistoryButton = graphButtons:addButton({
+    width = basalt.auto(),
+    height = 1,
+    text = "CLEAR",
+    foreground = C.text,
+    background = C.muted,
+})
+
 graph = graphPanelContainer:addPixelGraph({
     width = basalt.fill(),
     height = basalt.fill(),
@@ -1119,13 +1174,19 @@ graph:addSeries("output", {
 toggleVisibilityInputGraph:onClick(function()
     showInputGraph:set(not showInputGraph:get())
     graph:setSeriesVisible("input", showInputGraph:get())
+    updateGraphBounds()
     persistUserSettings()
 end)
 
 toggleVisibilityOutputGraph:onClick(function()
     showOutputGraph:set(not showOutputGraph:get())
     graph:setSeriesVisible("output", showOutputGraph:get())
+    updateGraphBounds()
     persistUserSettings()
+end)
+
+clearHistoryButton:onClick(function()
+    clearHistory()
 end)
 
 ------------------------------------------------------------
