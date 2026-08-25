@@ -793,4 +793,6 @@ end)
 
 basalt.run()
 
+history.save()
+
 print("Energy Core Monitor stopped.")
