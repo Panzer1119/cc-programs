@@ -18,6 +18,9 @@ local function sanitize(s)
         energyUnit = const.ENERGY_UNITS[utils.findIndex(const.ENERGY_UNITS, s.energyUnit)],
         rateUnit = const.RATE_UNITS[utils.findIndex(const.RATE_UNITS, s.rateUnit)],
         sampleInterval = const.SAMPLE_INTERVAL_OPTIONS[utils.findIndex(const.SAMPLE_INTERVAL_OPTIONS, s.sampleInterval)],
+        graphRefreshInterval = const.GRAPH_REFRESH_INTERVAL_OPTIONS[
+            utils.findIndex(const.GRAPH_REFRESH_INTERVAL_OPTIONS, s.graphRefreshInterval)
+        ],
         historyLength = const.HISTORY_LENGTH_OPTIONS[utils.findIndex(const.HISTORY_LENGTH_OPTIONS, s.historyLength)],
         showInputGraph = s.showInputGraph == nil and d.showInputGraph or not not s.showInputGraph,
         showOutputGraph = s.showOutputGraph == nil and d.showOutputGraph or not not s.showOutputGraph,

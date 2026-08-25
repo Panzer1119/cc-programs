@@ -11,11 +11,18 @@ local M = {}
 ------------------------------------------------------------
 
 M.SAMPLE_INTERVAL_OPTIONS = { 0.25, 0.5, 1, 5, 10 }
+M.GRAPH_REFRESH_INTERVAL_OPTIONS = { 0.25, 0.5, 1, 2, 5, 10 }
 M.HISTORY_LENGTH_OPTIONS = { 10, 60, 120, 300, 600 }
 
 M.FORMATTED_SAMPLE_INTERVAL_OPTIONS = {}
 for _, v in ipairs(M.SAMPLE_INTERVAL_OPTIONS) do
     M.FORMATTED_SAMPLE_INTERVAL_OPTIONS[#M.FORMATTED_SAMPLE_INTERVAL_OPTIONS + 1] =
+        string.format("%2.2f s", v)
+end
+
+M.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS = {}
+for _, v in ipairs(M.GRAPH_REFRESH_INTERVAL_OPTIONS) do
+    M.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS[#M.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS + 1] =
         string.format("%2.2f s", v)
 end
 
@@ -25,15 +32,21 @@ for _, v in ipairs(M.HISTORY_LENGTH_OPTIONS) do
         string.format("%3d s", v)
 end
 
--- Absolute upper bound on samples stored (shortest interval × longest window).
+-- Hard cap for in-memory/persisted history entries.
+M.MAX_HISTORY_ELEMENTS = 1000
+
+-- Theoretical window size implied by settings options (before the hard cap).
 M.MAX_HISTORY_LENGTH = math.ceil(
     M.HISTORY_LENGTH_OPTIONS[#M.HISTORY_LENGTH_OPTIONS] /
     M.SAMPLE_INTERVAL_OPTIONS[1]
 )
 
-M.DEFAULT_SAMPLE_INTERVAL_SECONDS = 1
+M.DEFAULT_SAMPLE_INTERVAL_SECONDS = 0.5
+M.DEFAULT_GRAPH_REFRESH_INTERVAL_SECONDS = 0.5
 M.DEFAULT_HISTORY_LENGTH_SECONDS = 60
 M.DEFAULT_SAMPLE_INTERVAL_INDEX = utils.findIndex(M.SAMPLE_INTERVAL_OPTIONS, M.DEFAULT_SAMPLE_INTERVAL_SECONDS)
+M.DEFAULT_GRAPH_REFRESH_INTERVAL_INDEX =
+    utils.findIndex(M.GRAPH_REFRESH_INTERVAL_OPTIONS, M.DEFAULT_GRAPH_REFRESH_INTERVAL_SECONDS)
 M.DEFAULT_HISTORY_LENGTH_INDEX = utils.findIndex(M.HISTORY_LENGTH_OPTIONS, M.DEFAULT_HISTORY_LENGTH_SECONDS)
 
 -- Minimum seconds between automatic history saves (throttles disk I/O).
@@ -147,6 +160,7 @@ M.DEFAULT_SETTINGS = {
     energyUnit = M.DEFAULT_ENERGY_UNIT,
     rateUnit = M.DEFAULT_RATE_UNIT,
     sampleInterval = M.DEFAULT_SAMPLE_INTERVAL_SECONDS,
+    graphRefreshInterval = M.DEFAULT_GRAPH_REFRESH_INTERVAL_SECONDS,
     historyLength = M.DEFAULT_HISTORY_LENGTH_SECONDS,
     showInputGraph = true,
     showOutputGraph = true,

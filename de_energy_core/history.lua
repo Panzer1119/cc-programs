@@ -49,7 +49,7 @@ local function sanitizeEntries(entries, nowTs)
 -- Validate, filter to the current time window, sort, and cap length.
     local result = {}
     local cutoff = nowTs - _historyLengthSeconds:get()
-    local maxLen = _historyLength:get()
+    local maxLen = math.min(_historyLength:get(), const.MAX_HISTORY_ELEMENTS)
 
     if type(entries) ~= "table" then
         return result
@@ -59,7 +59,7 @@ local function sanitizeEntries(entries, nowTs)
         local t = type(e) == "table" and tonumber(e.timestamp) or nil
         if t and t >= cutoff and t <= nowTs then
             result[#result + 1] = {
-                timestamp = math.floor(t),
+                timestamp = t,
                 energy = tonumber(e.energy) or 0,
                 maxEnergy = tonumber(e.maxEnergy) or 0,
                 input = tonumber(e.input) or 0,
@@ -121,7 +121,7 @@ function M.load()
             local t = tonumber(inp[i].timestamp)
             if t and t >= cutoff and t <= now then
                 merged[#merged + 1] = {
-                    timestamp = math.floor(t),
+                    timestamp = t,
                     energy = 0,
                     maxEnergy = 0,
                     input = tonumber(inp[i].value) or 0,
@@ -164,16 +164,35 @@ end
 
 -- Append one sample and trim to the current history-length window.
 function M.push(timestamp, energy, maxEnergy, input, output, transfer)
-    local cutoff = timestamp - _historyLengthSeconds:get()
-    local maxLen = _historyLength:get()
-
-    M.samples[#M.samples + 1] = {
+    return M.append({
         timestamp = timestamp,
         energy = energy,
         maxEnergy = maxEnergy,
         input = input,
         output = output,
-        transfer = transfer and transfer or input - output,
+        transfer = transfer,
+    })
+end
+
+-- Append one prebuilt sample object and trim to the current limits.
+function M.append(sample)
+    if type(sample) ~= "table" then
+        return false
+    end
+
+    local timestamp = tonumber(sample.timestamp) or utils.getUnixTimestamp()
+    local cutoff = timestamp - _historyLengthSeconds:get()
+    local maxLen = math.min(_historyLength:get(), const.MAX_HISTORY_ELEMENTS)
+    local input = tonumber(sample.input) or 0
+    local output = tonumber(sample.output) or 0
+
+    M.samples[#M.samples + 1] = {
+        timestamp = timestamp,
+        energy = tonumber(sample.energy) or 0,
+        maxEnergy = tonumber(sample.maxEnergy) or 0,
+        input = input,
+        output = output,
+        transfer = tonumber(sample.transfer) or (input - output),
     }
     while #M.samples > maxLen do
         table.remove(M.samples, 1)
@@ -181,12 +200,13 @@ function M.push(timestamp, energy, maxEnergy, input, output, transfer)
     while #M.samples > 0 and M.samples[1].timestamp < cutoff do
         table.remove(M.samples, 1)
     end
+    return true
 end
 
 -- Drop all entries outside the current settings window and persist.
 -- The caller should redraw the graph after this call.
 function M.trim()
-    local maxLen = _historyLength:get()
+    local maxLen = math.min(_historyLength:get(), const.MAX_HISTORY_ELEMENTS)
     local cutoff = utils.getUnixTimestamp() - _historyLengthSeconds:get()
 
     while #M.samples > maxLen do

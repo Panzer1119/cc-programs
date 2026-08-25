@@ -42,6 +42,9 @@ local monitorTextScaleIndex = basalt.signal(utils.findIndex(const.MONITOR_TEXT_S
 local energyUnitIndex = basalt.signal(utils.findIndex(const.ENERGY_UNITS, savedSettings.energyUnit))
 local rateUnitIndex = basalt.signal(utils.findIndex(const.RATE_UNITS, savedSettings.rateUnit))
 local sampleIntervalIndex = basalt.signal(utils.findIndex(const.SAMPLE_INTERVAL_OPTIONS, savedSettings.sampleInterval))
+local graphRefreshIntervalIndex = basalt.signal(
+    utils.findIndex(const.GRAPH_REFRESH_INTERVAL_OPTIONS, savedSettings.graphRefreshInterval)
+)
 local historyLengthIndex = basalt.signal(utils.findIndex(const.HISTORY_LENGTH_OPTIONS, savedSettings.historyLength))
 local showInputGraph = basalt.signal(savedSettings.showInputGraph)
 local showOutputGraph = basalt.signal(savedSettings.showOutputGraph)
@@ -60,10 +63,16 @@ end)
 
 local sampleIntervalSeconds = basalt.computed(function() return const.SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]
 end)
+local graphRefreshIntervalSeconds = basalt.computed(function()
+    return const.GRAPH_REFRESH_INTERVAL_OPTIONS[graphRefreshIntervalIndex:get()]
+end)
 local historyLengthSeconds = basalt.computed(function() return const.HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]
 end)
 local historyLength = basalt.computed(function()
     return math.ceil(historyLengthSeconds:get() / sampleIntervalSeconds:get())
+end)
+local historyCapacity = basalt.computed(function()
+    return math.min(historyLength:get(), const.MAX_HISTORY_ELEMENTS)
 end)
 
 -- Derived from sensor readings.
@@ -90,6 +99,7 @@ end)
 
 -- Sampler timing feedback.
 local sampleIntervalDelayMs = basalt.signal(0)
+local graphRefreshDelayMs = basalt.signal(0)
 
 ------------------------------------------------------------
 -- Settings Persistence
@@ -102,6 +112,7 @@ local function persistSettings()
         energyUnit = energyUnit:get(),
         rateUnit = rateUnit:get(),
         sampleInterval = sampleIntervalSeconds:get(),
+        graphRefreshInterval = graphRefreshIntervalSeconds:get(),
         historyLength = historyLengthSeconds:get(),
         showInputGraph = showInputGraph:get(),
         showOutputGraph = showOutputGraph:get(),
@@ -265,8 +276,8 @@ local function setupGraphSeries()
     if not graph then
         return
     end
-    graph:addSeries("input", { color = C.input, pointCount = historyLength:get(), visible = showInputGraph:get() })
-    graph:addSeries("output", { color = C.output, pointCount = historyLength:get(), visible = showOutputGraph:get() })
+    graph:addSeries("input", { color = C.input, pointCount = historyCapacity:get(), visible = showInputGraph:get() })
+    graph:addSeries("output", { color = C.output, pointCount = historyCapacity:get(), visible = showOutputGraph:get() })
 end
 
 local function clearGraphSeries()
@@ -309,17 +320,11 @@ end
 -- Sampling
 ------------------------------------------------------------
 
-local lastSample = 0
+local latestSample
+local latestSampleSerial = 0
+local lastRenderedSampleSerial = 0
 
 local function sample()
-    lastSample = os.clock()
-    refreshPeripherals()
-
-    if not energyCore then
-        connected:set(false)
-        return
-    end
-
     local okE, newEnergy = callEnergyCore("getEnergyStored")
     local okM, newMax = callEnergyCore("getMaxEnergyStored")
     local okI, newInput = callEnergyCore("getInputPerTick")
@@ -327,29 +332,39 @@ local function sample()
     local okT, newTransfer = callEnergyCore("getTransferPerTick")
 
     if not (okE and okM and okI and okO and okT) then
-        connected:set(false)
-        return
+        return false
     end
 
-    local eVal = tonumber(newEnergy) or 0
-    local mVal = tonumber(newMax) or 0
-    local iVal = tonumber(newInput) or 0
-    local oVal = tonumber(newOutput) or 0
-    local tVal = tonumber(newTransfer) or 0
+    local entry = {
+        timestamp = utils.getUnixTimestamp(),
+        energy = tonumber(newEnergy) or 0,
+        maxEnergy = tonumber(newMax) or 0,
+        input = tonumber(newInput) or 0,
+        output = tonumber(newOutput) or 0,
+        transfer = tonumber(newTransfer) or 0,
+    }
+    history.append(entry)
+    latestSample = entry
+    latestSampleSerial = latestSampleSerial + 1
+    return true
+end
 
-    energy:set(eVal)
-    maxEnergy:set(mVal)
-    input:set(iVal)
-    output:set(oVal)
-    transfer:set(tVal)
+local function refreshFromLatestSample()
+    if latestSampleSerial ~= lastRenderedSampleSerial and latestSample then
+        energy:set(latestSample.energy)
+        maxEnergy:set(latestSample.maxEnergy)
+        input:set(latestSample.input)
+        output:set(latestSample.output)
+        transfer:set(latestSample.transfer)
 
-    local now = utils.getUnixTimestamp()
-    history.push(now, eVal, mVal, iVal, oVal, tVal)
+        graph:addPoint("input", latestSample.input)
+        graph:addPoint("output", latestSample.output)
+        updateGraphBounds()
 
-    graph:addPoint("input", iVal)
-    graph:addPoint("output", oVal)
+    --TODO We actually want to render the same sample if the refresh rate is higher than the sample rate?
+    --lastRenderedSampleSerial = latestSampleSerial
+    end
 
-    connected:set(true)
     history.maybeSave()
 end
 
@@ -426,8 +441,19 @@ headerEndData:addLabel({
 
 -- ── Settings Dropdowns (absolute-positioned, top-right) ──
 --
--- Layout right → left: [rate unit] [energy unit] [scale] [history] [sample]
+-- Layout right → left: [rate unit] [energy unit] [scale] [history] [sample] [refresh]
 -- Each `x` expression subtracts the total width of all dropdowns to its right.
+
+local graphRefreshIntervalDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - (5+3 + 1 + 5+3 + 1 + 5+2 + 1 + 3+1 + 1 + 4 + 1 + 4) + 1}",
+    y = "{parent.y + 1}",
+    width = 5 + 3,
+    text = const.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS[graphRefreshIntervalIndex:get()],
+    dropHeight = #const.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS,
+    items = const.FORMATTED_GRAPH_REFRESH_INTERVAL_OPTIONS,
+    background = C.muted,
+})
 
 local sampleIntervalDropdown = mainPage:addDropdown({
     position = "absolute",
@@ -485,6 +511,10 @@ local rateUnitDropdown = mainPage:addDropdown({
 })
 
 -- Wire dropdowns to signals and persist on every change.
+graphRefreshIntervalDropdown:bind("selected", graphRefreshIntervalIndex)
+graphRefreshIntervalDropdown:onSelect(function() persistSettings()
+end)
+
 sampleIntervalDropdown:bind("selected", sampleIntervalIndex)
 sampleIntervalDropdown:onSelect(function()
     trimHistoryToCurrentSettings()
@@ -716,10 +746,10 @@ local function addFooterStatRow(parent, getLabelFn, inFn, outFn, netFn, netColor
 
     -- Sample count "NNN/MMM".
     row:addLabel({
-        width = basalt.computed(function() return 2 * #tostring(historyLength:get()) + 1
+        width = basalt.computed(function() return 2 * #tostring(historyCapacity:get()) + 1
         end),
         text = basalt.computed(function()
-            local max = historyLength:get()
+            local max = historyCapacity:get()
             return string.format("%" .. #tostring(max) .. "d/%d", #history.samples, max)
         end),
         foreground = C.muted,
@@ -775,15 +805,60 @@ mainPage:addRow({ width = basalt.fill(), height = 1, background = C.panel })
 ------------------------------------------------------------
 
 basalt.schedule(function()
+    local nextRun = os.clock()
     while true do
-        local ok = pcall(sample)
-        if not ok then
+        local now = os.clock()
+        if now < nextRun then
+            sleep(nextRun - now)
+        end
+
+        local startedAt = os.clock()
+        refreshPeripherals()
+
+        if energyCore then
+            local ok, sampled = pcall(sample)
+            connected:set(ok and sampled)
+        else
             connected:set(false)
         end
 
-        local elapsed = os.clock() - lastSample
+        local elapsed = os.clock() - startedAt
         sampleIntervalDelayMs:set(math.floor(elapsed * 1000))
-        sleep(math.max(0, sampleIntervalSeconds:get() - elapsed))
+
+        local interval = sampleIntervalSeconds:get()
+        nextRun = nextRun + interval
+        while nextRun < os.clock() do
+            nextRun = nextRun + interval
+        end
+    end
+end)
+
+------------------------------------------------------------
+-- Graph/UI Refresh Coroutine
+------------------------------------------------------------
+
+basalt.schedule(function()
+    local nextRun = os.clock()
+    while true do
+        local now = os.clock()
+        if now < nextRun then
+            sleep(nextRun - now)
+        end
+
+        local startedAt = os.clock()
+        local ok = pcall(refreshFromLatestSample)
+        if not ok then
+        -- Keep the monitor alive even if one refresh tick fails.
+        end
+
+        local elapsed = os.clock() - startedAt
+        graphRefreshDelayMs:set(math.floor(elapsed * 1000))
+
+        local interval = graphRefreshIntervalSeconds:get()
+        nextRun = nextRun + interval
+        while nextRun < os.clock() do
+            nextRun = nextRun + interval
+        end
     end
 end)
 
