@@ -13,7 +13,23 @@ basalt.use("charts")
 
 local DEFAULT_SAMPLE_INTERVAL_SECONDS = 1
 local DEFAULT_HISTORY_LENGTH_SECONDS = 60
-local DEFAULT_HISTORY_LENGTH = math.ceil(DEFAULT_HISTORY_LENGTH_SECONDS / DEFAULT_SAMPLE_INTERVAL_SECONDS)
+
+local SAMPLE_INTERVAL_OPTIONS = { 0.25, 0.5, 1, 5, 10 }
+local HISTORY_LENGTH_OPTIONS = { 10, 60, 120, 300, 600 }
+local MAX_HISTORY_LENGTH = math.ceil(HISTORY_LENGTH_OPTIONS[#HISTORY_LENGTH_OPTIONS] / SAMPLE_INTERVAL_OPTIONS[1])
+
+local function findDefaultOptionIndex(options, defaultValue)
+    for index, value in ipairs(options) do
+        if value == defaultValue then
+            return index
+        end
+    end
+
+    return 1
+end
+
+local DEFAULT_SAMPLE_INTERVAL_INDEX = findDefaultOptionIndex(SAMPLE_INTERVAL_OPTIONS, DEFAULT_SAMPLE_INTERVAL_SECONDS)
+local DEFAULT_HISTORY_LENGTH_INDEX = findDefaultOptionIndex(HISTORY_LENGTH_OPTIONS, DEFAULT_HISTORY_LENGTH_SECONDS)
 
 local DEFAULT_PERCENTAGE_NUMBER_LENGTH = #"100.00 %"
 local DEFAULT_ENERGY_NUMBER_LENGTH = #"+999.99 kRF"
@@ -92,6 +108,8 @@ local DEFAULT_USER_SETTINGS = {
     monitorTextScaleIndex = 2,
     energyUnitIndex = 1,
     rateUnitIndex = 1,
+    sampleIntervalIndex = DEFAULT_SAMPLE_INTERVAL_INDEX,
+    historyLengthIndex = DEFAULT_HISTORY_LENGTH_INDEX,
     showInputGraph = true,
     showOutputGraph = true,
 }
@@ -115,6 +133,8 @@ local function sanitizeUserSettings(settings)
         monitorTextScaleIndex = clamp(tonumber(settings.monitorTextScaleIndex) or DEFAULT_USER_SETTINGS.monitorTextScaleIndex, 1, #MONITOR_TEXT_SCALES),
         energyUnitIndex = clamp(tonumber(settings.energyUnitIndex) or DEFAULT_USER_SETTINGS.energyUnitIndex, 1, #ENERGY_UNITS),
         rateUnitIndex = clamp(tonumber(settings.rateUnitIndex) or DEFAULT_USER_SETTINGS.rateUnitIndex, 1, #RATE_UNITS),
+        sampleIntervalIndex = clamp(tonumber(settings.sampleIntervalIndex) or DEFAULT_USER_SETTINGS.sampleIntervalIndex, 1, #SAMPLE_INTERVAL_OPTIONS),
+        historyLengthIndex = clamp(tonumber(settings.historyLengthIndex) or DEFAULT_USER_SETTINGS.historyLengthIndex, 1, #HISTORY_LENGTH_OPTIONS),
         showInputGraph = settings.showInputGraph == nil and DEFAULT_USER_SETTINGS.showInputGraph or not not settings.showInputGraph,
         showOutputGraph = settings.showOutputGraph == nil and DEFAULT_USER_SETTINGS.showOutputGraph or not not settings.showOutputGraph,
     }
@@ -179,6 +199,21 @@ local rateUnitFactor = basalt.computed(function()
     return RATE_UNIT_FACTORS[rateUnit:get()]
 end)
 
+local sampleIntervalIndex = basalt.signal(userSettings.sampleIntervalIndex)
+local historyLengthIndex = basalt.signal(userSettings.historyLengthIndex)
+
+local sampleIntervalSeconds = basalt.computed(function()
+    return SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]
+end)
+
+local historyLengthSeconds = basalt.computed(function()
+    return HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]
+end)
+
+local historyLength = basalt.computed(function()
+    return math.ceil(historyLengthSeconds:get() / sampleIntervalSeconds:get())
+end)
+
 local showInputGraph = basalt.signal(userSettings.showInputGraph)
 local showOutputGraph = basalt.signal(userSettings.showOutputGraph)
 
@@ -187,6 +222,8 @@ local function getUserSettings()
         monitorTextScaleIndex = monitorTextScaleIndex:get(),
         energyUnitIndex = energyUnitIndex:get(),
         rateUnitIndex = rateUnitIndex:get(),
+        sampleIntervalIndex = sampleIntervalIndex:get(),
+        historyLengthIndex = historyLengthIndex:get(),
         showInputGraph = showInputGraph:get(),
         showOutputGraph = showOutputGraph:get(),
     }
@@ -215,7 +252,8 @@ end
 
 local function sanitizeHistoryEntries(entries, nowTimestamp)
     local sanitizedEntries = {}
-    local cutoffTimestamp = nowTimestamp - DEFAULT_HISTORY_LENGTH_SECONDS
+    local cutoffTimestamp = nowTimestamp - historyLengthSeconds:get()
+    local selectedHistoryLength = historyLength:get()
 
     if type(entries) ~= "table" then
         return sanitizedEntries
@@ -241,7 +279,7 @@ local function sanitizeHistoryEntries(entries, nowTimestamp)
         return a.timestamp < b.timestamp
     end)
 
-    while #sanitizedEntries > DEFAULT_HISTORY_LENGTH do
+    while #sanitizedEntries > selectedHistoryLength do
         table.remove(sanitizedEntries, 1)
     end
 
@@ -682,11 +720,11 @@ local function push(history, timestamp, value)
         value = value,
     }
 
-    while #history > DEFAULT_HISTORY_LENGTH do
+    while #history > historyLength:get() do
         table.remove(history, 1)
     end
 
-    local cutoffTimestamp = timestamp - DEFAULT_HISTORY_LENGTH_SECONDS
+    local cutoffTimestamp = timestamp - historyLengthSeconds:get()
 
     while #history > 0 and history[1].timestamp < cutoffTimestamp do
         table.remove(history, 1)
@@ -723,12 +761,33 @@ local function updateGraphBounds()
     graph.minValue = minimum
 end
 
+local function setupGraphDisplay()
+    if not graph then
+        return
+    end
+
+    graph:addSeries("input", {
+        color = C.input,
+        pointCount = historyLength:get(),
+        visible = showInputGraph:get(),
+    })
+
+    graph:addSeries("output", {
+        color = C.output,
+        pointCount = historyLength:get(),
+        visible = showOutputGraph:get(),
+    })
+end
+
 local function clearGraphDisplay()
     if not graph then
         return
     end
-    graph:clear("input")
-    graph:clear("output")
+    --graph:clear("input")
+    --graph:clear("output")
+    graph:removeSeries("input")
+    graph:removeSeries("output")
+    setupGraphDisplay()
     graph.maxValue = 100
     graph.minValue = 0
 end
@@ -756,6 +815,31 @@ local function clearHistory()
     outputHistory = {}
 
     clearGraphDisplay()
+    persistHistory()
+end
+
+local function trimHistoryToCurrentSettings()
+    local selectedHistoryLength = historyLength:get()
+    local cutoffTimestamp = getUnixTimestamp() - historyLengthSeconds:get()
+
+    while #inputHistory > selectedHistoryLength do
+        table.remove(inputHistory, 1)
+    end
+
+    while #outputHistory > selectedHistoryLength do
+        table.remove(outputHistory, 1)
+    end
+
+    while #inputHistory > 0 and inputHistory[1].timestamp < cutoffTimestamp do
+        table.remove(inputHistory, 1)
+    end
+
+    while #outputHistory > 0 and outputHistory[1].timestamp < cutoffTimestamp do
+        table.remove(outputHistory, 1)
+    end
+
+    inputHistory, outputHistory = normalizeHistoryPair(inputHistory, outputHistory)
+    fillGraphFromHistory()
     persistHistory()
 end
 
@@ -801,7 +885,9 @@ local function sample()
     graph:addPoint("input", newInput)
     graph:addPoint("output", newOutput)
 
-    updateGraphBounds()
+    --TODO This is probably bad for the performance, no?
+    ---- Rebuild from persisted history so dynamic interval/history settings stay in sync.
+    --fillGraphFromHistory()
     persistHistory()
 end
 
@@ -899,7 +985,7 @@ headerEndData:addLabel({
             return C.muted
         end
 
-        local valuePercentage = value / (DEFAULT_SAMPLE_INTERVAL_SECONDS * 1000)
+        local valuePercentage = value / (sampleIntervalSeconds:get() * 1000)
         if valuePercentage < 0.5 then
             return C.good
         elseif valuePercentage < 1.0 then
@@ -947,6 +1033,30 @@ headerEndData:addLabel({
 
 -- Monitor text scale selector
 
+--local sampleIntervalDropdown = settingsRow:addDropdown({
+local sampleIntervalDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - (5 + 1 + 5 + 1 + 3 + 1 + 4 + 1 + 4) + 1}",
+    y = "{parent.y + 1}",
+    width = 5,
+    text = tostring(SAMPLE_INTERVAL_OPTIONS[sampleIntervalIndex:get()]),
+    dropHeight = #SAMPLE_INTERVAL_OPTIONS,
+    items = SAMPLE_INTERVAL_OPTIONS,
+    background = C.muted,
+})
+
+--local historyLengthDropdown = settingsRow:addDropdown({
+local historyLengthDropdown = mainPage:addDropdown({
+    position = "absolute",
+    x = "{parent.width - (5 + 1 + 3 + 1 + 4 + 1 + 4) + 1}",
+    y = "{parent.y + 1}",
+    width = 5,
+    text = tostring(HISTORY_LENGTH_OPTIONS[historyLengthIndex:get()]),
+    dropHeight = #HISTORY_LENGTH_OPTIONS,
+    items = HISTORY_LENGTH_OPTIONS,
+    background = C.muted,
+})
+
 --local monitorTextScaleDropdown = settingsRow:addDropdown({
 local monitorTextScaleDropdown = mainPage:addDropdown({
     position = "absolute",
@@ -992,6 +1102,19 @@ local rateUnitDropdown = mainPage:addDropdown({
     items = RATE_UNITS,
     background = C.muted,
 })
+
+sampleIntervalDropdown:bind("selected", sampleIntervalIndex)
+historyLengthDropdown:bind("selected", historyLengthIndex)
+
+sampleIntervalDropdown:onSelect(function()
+    trimHistoryToCurrentSettings()
+    persistUserSettings()
+end)
+
+historyLengthDropdown:onSelect(function()
+    trimHistoryToCurrentSettings()
+    persistUserSettings()
+end)
 
 energyUnitDropdown:bind("selected", energyUnitIndex)
 rateUnitDropdown:bind("selected", rateUnitIndex)
@@ -1271,7 +1394,9 @@ local graphHeader = graphPanelContainer:addRow({
 
 graphHeader:addLabel({
     width = basalt.auto(),
-    text = "RATE HISTORY - " .. DEFAULT_HISTORY_LENGTH_SECONDS .. " SECONDS",
+    text = basalt.computed(function()
+        return "RATE HISTORY - " .. historyLengthSeconds:get() .. " SECONDS"
+    end),
     foreground = C.accent,
 })
 
@@ -1315,17 +1440,7 @@ graph = graphPanelContainer:addPixelGraph({
     maxValue = 100,
 })
 
-graph:addSeries("input", {
-    color = C.input,
-    pointCount = DEFAULT_HISTORY_LENGTH,
-    visible = showInputGraph:get(),
-})
-
-graph:addSeries("output", {
-    color = C.output,
-    pointCount = DEFAULT_HISTORY_LENGTH,
-    visible = showOutputGraph:get(),
-})
+setupGraphDisplay()
 
 fillGraphFromHistory()
 
@@ -1368,7 +1483,9 @@ local graphFooterAverage = graphFooter:addRow({
 
 graphFooterAverage:addLabel({
     width = basalt.auto(),
-    text = "" .. DEFAULT_HISTORY_LENGTH_SECONDS .. "S AVG",
+    text = basalt.computed(function()
+        return "" .. historyLengthSeconds:get() .. "S AVG"
+    end),
     foreground = C.accent,
 })
 
@@ -1412,11 +1529,12 @@ graphFooterAverageNet:addLabel({
 
 graphFooterAverage:addLabel({
     width = basalt.computed(function()
-        return 2 * #tostring(DEFAULT_HISTORY_LENGTH) + 1
+        return 2 * #tostring(historyLength:get()) + 1
     end),
     text = basalt.computed(function()
-        local l = #tostring(DEFAULT_HISTORY_LENGTH)
-        return string.format("%"..l.."d/%d", #inputHistory, DEFAULT_HISTORY_LENGTH)
+        local selectedHistoryLength = historyLength:get()
+        local l = #tostring(selectedHistoryLength)
+        return string.format("%"..l.."d/%d", #inputHistory, selectedHistoryLength)
     end),
     foreground = C.muted,
 })
@@ -1433,7 +1551,9 @@ local graphFooterMaximum = graphFooter:addRow({
 
 graphFooterMaximum:addLabel({
     width = basalt.auto(),
-    text = "" .. DEFAULT_HISTORY_LENGTH_SECONDS .. "S MAX",
+    text = basalt.computed(function()
+        return "" .. historyLengthSeconds:get() .. "S MAX"
+    end),
     foreground = C.accent,
 })
 
@@ -1477,11 +1597,12 @@ graphFooterMaximumNet:addLabel({
 
 graphFooterMaximum:addLabel({
     width = basalt.computed(function()
-        return 2 * #tostring(DEFAULT_HISTORY_LENGTH) + 1
+        return 2 * #tostring(historyLength:get()) + 1
     end),
     text = basalt.computed(function()
-        local l = #tostring(DEFAULT_HISTORY_LENGTH)
-        return string.format("%"..l.."d/%d", #inputHistory, DEFAULT_HISTORY_LENGTH)
+        local selectedHistoryLength = historyLength:get()
+        local l = #tostring(selectedHistoryLength)
+        return string.format("%"..l.."d/%d", #inputHistory, selectedHistoryLength)
     end),
     foreground = C.muted,
 })
@@ -1498,7 +1619,9 @@ local graphFooterMinimum = graphFooter:addRow({
 
 graphFooterMinimum:addLabel({
     width = basalt.auto(),
-    text = "" .. DEFAULT_HISTORY_LENGTH_SECONDS .. "S MIN",
+    text = basalt.computed(function()
+        return "" .. historyLengthSeconds:get() .. "S MIN"
+    end),
     foreground = C.accent,
 })
 
@@ -1542,11 +1665,12 @@ graphFooterMinimumNet:addLabel({
 
 graphFooterMinimum:addLabel({
     width = basalt.computed(function()
-        return 2 * #tostring(DEFAULT_HISTORY_LENGTH) + 1
+        return 2 * #tostring(historyLength:get()) + 1
     end),
     text = basalt.computed(function()
-        local l = #tostring(DEFAULT_HISTORY_LENGTH)
-        return string.format("%"..l.."d/%d", #inputHistory, DEFAULT_HISTORY_LENGTH)
+        local selectedHistoryLength = historyLength:get()
+        local l = #tostring(selectedHistoryLength)
+        return string.format("%"..l.."d/%d", #inputHistory, selectedHistoryLength)
     end),
     foreground = C.muted,
 })
@@ -1583,7 +1707,7 @@ basalt.schedule(function()
 
         local now = os.clock()
         local sampleIntervalDelaySeconds = now - lastSample
-        local delay = DEFAULT_SAMPLE_INTERVAL_SECONDS - sampleIntervalDelaySeconds
+        local delay = sampleIntervalSeconds:get() - sampleIntervalDelaySeconds
         sampleIntervalDelayMs:set(math.floor(sampleIntervalDelaySeconds * 1000))
         sleep(math.max(0, delay))
     end
