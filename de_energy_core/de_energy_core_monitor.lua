@@ -338,7 +338,7 @@ end
 local function push(history, value)
     history[#history + 1] = value
 
-    if #history > HISTORY_LENGTH_SECONDS then
+    if #history > HISTORY_LENGTH then
         table.remove(history, 1)
     end
 end
@@ -983,7 +983,7 @@ footer:addLabel({
     y = 1,
     width = basalt.fill(),
     text = basalt.computed(function()
-        return #inputHistory .. "/60"
+        return #inputHistory .. "/" .. HISTORY_LENGTH
     end),
     foreground = C.muted,
 })
