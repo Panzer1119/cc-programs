@@ -108,8 +108,8 @@ M.ENERGY_CORE_TYPES = { "draconic_rf_storage", "draconicRfStorage", "energy_pylo
 -- Energy units
 ------------------------------------------------------------
 
-M.ENERGY_UNITS = { "RF", "FE", "OP", "AE", "EU" }
-M.ENERGY_UNIT_FACTORS = { RF = 1, FE = 1, OP = 1, AE = 2, EU = 16 }
+M.ENERGY_UNITS = { "RF", "FE", "OP", "AE", "EU", "J" }
+M.ENERGY_UNIT_FACTORS = { RF = 1, FE = 1, OP = 1, AE = 2, EU = 16, J = 2.5 }
 
 M.DEFAULT_ENERGY_UNIT = "RF"
 M.DEFAULT_ENERGY_UNIT_INDEX = utils.findIndex(M.ENERGY_UNITS, M.DEFAULT_ENERGY_UNIT)
