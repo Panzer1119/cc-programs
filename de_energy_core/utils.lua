@@ -34,6 +34,10 @@ function M.si(n, unit, forceSign, forceSpace)
     if not n then
         return "N/A"
     end
+    -- Replace Joules per Second with Watts
+    if unit == "J/s" then
+        unit = "W"
+    end
     -- Prefixes ordered from quecto (10^-30) to quetta (10^30).
     -- Index OFFSET corresponds to the empty prefix (×10^0).
     local prefixes = { "q", "r", "y", "z", "a", "f", "p", "n", "u", "m", "", "k", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" }
